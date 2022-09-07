@@ -1,3 +1,3 @@
 package common
 
-case class AppConfig(dbConf: DbConfig)
+case class AppConfig(dbConf: DbConfig, botConfig: BotConfig)
