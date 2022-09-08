@@ -69,7 +69,6 @@ import java.sql.Statement
         _ <- console.printLine(s" response statusText    = ${response.statusText}")
         _ <- console.printLine(s" response code          = ${response.code}")
 
-
         //_ <- console.printLine(s" RES = ${response.body.right.get} ")
         _ <- console.printLine(" ")
         _ <- console.printLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
@@ -78,22 +77,15 @@ import java.sql.Statement
         evs = response.body.right.get.events
         evh = evs.head
 
-        //todo: we need combine result data and execute inserts
-        // with using evs
-        // construct c.c. as data structure to future use to inserts.
-
-        pgc <- conn.connection
-        //INSERT INTO pages VALUES(DEFAULT) RETURNING id;
-        pstmt  = pgc.prepareStatement("insert into fba_load default values;",Statement.RETURN_GENERATED_KEYS)
-        resInsert = pstmt.executeUpdate()
-        keyset = pstmt.getGeneratedKeys()
-        _ = keyset.next()
-        idFbaLoad = keyset.getInt(1)
-        _ <- console.printLine(s" insertion ${resInsert} row with ID = ${idFbaLoad}")
+        //pgc <- conn.connection
+        idFbaLoad <- conn.save_fba_load
+       /*
         pstmt = pgc.prepareStatement(
           s"insert into events(fba_load_id, event_id,event_number,competitionName, skid, skname, timerSeconds, team1Id,team1, team2Id,team2, startTimeTimestamp, eventName) values(?,?,?,?,?,?,?,?,?,?,?,?,?);"
           ,Statement.RETURN_GENERATED_KEYS)
+        */
         _ <- ZIO.foreach(evs.filter(ei => ei.markets.nonEmpty && ei.timer.nonEmpty && ei.markets.exists(mf => mf.ident == "Results"))){ev =>
+          /*
               pstmt.setLong(1, idFbaLoad)
               pstmt.setLong(2, ev.id)
               pstmt.setLong(3, ev.number)
@@ -111,40 +103,70 @@ import java.sql.Statement
               val keysetEvnts = pstmt.getGeneratedKeys()
               keysetEvnts.next()
               val idFbaEvent = keysetEvnts.getInt(1)
-              console.printLine(s" Event insertion ${resInsertEvent} row with Event ID = ${idFbaEvent}")
-              //scores insert
-              ZIO.foreach(ev.markets.filter(mf => mf.ident == "Results" && mf.rows.nonEmpty && mf.rows.size >= 2)){m =>
-                (if (m.rows.nonEmpty &&
-                  m.rows.size >= 2 &&
-                  m.rows(0).cells.nonEmpty &&
-                  m.rows(0).cells.size >= 4 &&
-                  m.rows(1).cells.nonEmpty &&
-                  m.rows(1).cells.size >= 4 //todo: add more filter.
-                ) {
-                  val r0 = m.rows(0)
-                  val r1 = m.rows(1)
+          */
 
-                  val pstmtS = pgc.prepareStatement(s"insert into score(events_id,team1,team1Coeff, team1score, draw, draw_coeff, team2Coeff, team2, team2score) values(?,?,?,?,?,?,?,?,?);")
+          conn.save_event(
+            idFbaLoad,
+            ev.id,
+            ev.number,
+            ev.competitionName,
+            ev.skId,
+            ev.skName,
+            ev.timerSeconds.getOrElse(0L),
+            ev.team1Id,
+            ev.team1,
+            ev.team2Id,
+            ev.team2,
+            ev.startTimeTimestamp,
+            ev.eventName
+          ).map { idFbaEvent =>
+            ZIO.logInfo(s" Event insertion with ID ${idFbaEvent} row with Event ID = ${idFbaLoad}") *>
+            //scores insert
+            ZIO.foreach(ev.markets.filter(mf => mf.ident == "Results" && mf.rows.nonEmpty && mf.rows.size >= 2)) { m =>
+              (if (m.rows.nonEmpty &&
+                m.rows.size >= 2 &&
+                m.rows(0).cells.nonEmpty &&
+                m.rows(0).cells.size >= 4 &&
+                m.rows(1).cells.nonEmpty &&
+                m.rows(1).cells.size >= 4 //todo: add more filter.
+              ) {
+                val r0 = m.rows(0)
+                val r1 = m.rows(1)
+                conn.save_score(
+                  idFbaEvent,
+                  r0.cells(1).caption.getOrElse("*"),
+                  r1.cells(1).value.getOrElse(0.0),
+                  ev.scores(0).head.c1,
+                  r0.cells(2).caption.getOrElse("*"),
+                  r1.cells(2).value.getOrElse(0.0),
+                  r1.cells(3).value.getOrElse(0.0),
+                  r0.cells(3).caption.getOrElse("*"),
+                  ev.scores(0).head.c2
+                ).flatMap(resInsertEventScore =>  ZIO.logInfo(s" Inserted ${resInsertEventScore} scores"))
+                /*
+                val pstmtS = pgc.prepareStatement(s"insert into score(events_id,team1,team1Coeff, team1score, draw, draw_coeff, team2Coeff, team2, team2score) values(?,?,?,?,?,?,?,?,?);")
+                pstmtS.setLong(1, idFbaEvent)
+                pstmtS.setString(2, r0.cells(1).caption.getOrElse("*"))
+                pstmtS.setDouble(3, r1.cells(1).value.getOrElse(0.0))
+                pstmtS.setString(4, ev.scores(0).head.c1)
+                pstmtS.setString(5, r0.cells(2).caption.getOrElse("*"))
+                pstmtS.setDouble(6, r1.cells(2).value.getOrElse(0.0))
+                pstmtS.setDouble(7, r1.cells(3).value.getOrElse(0.0))
+                pstmtS.setString(8, r0.cells(3).caption.getOrElse("*"))
+                pstmtS.setString(9, ev.scores(0).head.c2)
+                val resInsertEventScore = pstmtS.executeUpdate()
+                */
 
-                  pstmtS.setLong(1, idFbaEvent)
-                  pstmtS.setString(2,r0.cells(1).caption.getOrElse("*"))
-                  pstmtS.setDouble(3,r1.cells(1).value.getOrElse(0.0))
-                  pstmtS.setString(4,ev.scores(0).head.c1)
-                  pstmtS.setString(5,r0.cells(2).caption.getOrElse("*"))
-                  pstmtS.setDouble(6,r1.cells(2).value.getOrElse(0.0))
-                  pstmtS.setDouble(7,r1.cells(3).value.getOrElse(0.0))
-                  pstmtS.setString(8,r0.cells(3).caption.getOrElse("*"))
-                  pstmtS.setString(9,ev.scores(0).head.c2)
+                //console.printLine(s" Scores inserted : ${resInsertEventScore}")
+                //console.printLine{s"${r0.cells(1).caption} - ${r1.cells(1).value} score (this team) : ${ev.scores(0).head.c1}"} *>
+                //console.printLine(s"${r0.cells(2).caption} - ${r1.cells(2).value}") *>
+                //console.printLine(s"${r0.cells(3).caption} - ${r1.cells(3).value} score (this team) : ${ev.scores(0).head.c1}")
+              } else {
+                console.printLine("not interested!!!")
+              })
+            }
+          }
 
-                  val resInsertEventScore = pstmtS.executeUpdate()
-                  console.printLine(s" Scores inserted : ${resInsertEventScore}")
-                    //console.printLine{s"${r0.cells(1).caption} - ${r1.cells(1).value} score (this team) : ${ev.scores(0).head.c1}"} *>
-                    //console.printLine(s"${r0.cells(2).caption} - ${r1.cells(2).value}") *>
-                    //console.printLine(s"${r0.cells(3).caption} - ${r1.cells(3).value} score (this team) : ${ev.scores(0).head.c1}")
-                } else {
-                  console.printLine("not interested!!!")
-                })
-              }
         }
 
         //full output one event

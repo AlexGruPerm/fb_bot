@@ -1,5 +1,9 @@
 
-select sum(1) from events e; 
+delete from fba_load;
+
+select * from events e order by e.ins_datetime desc;
+
+select sum(1) from events e;  
 select sum(1) from score s;
 
 --delete from fba.events; 
@@ -60,7 +64,7 @@ select
  --e.*,s.* 
 from events e 
 left join score s on e.id = s.events_id
-where e.event_id = 36074138 and
+where e.event_id = 35910092 and
      -- событие существует в последней загрузке 
   --and 
    (s.team1coeff is not null or s.team2coeff is not null) 
