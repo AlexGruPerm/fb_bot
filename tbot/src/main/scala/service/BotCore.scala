@@ -107,7 +107,9 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
         case false =>
           ZIO.logError("Failed to set webhook")
           throw new RuntimeException("Failed to set webhook")
-      }.catchAllDefect(ex => ZIO.logError(s"SetWebhook exception ${ex.getMessage} - ${ex.getCause}") *> ZIO.succeed(false)) //+++
+      }.catchAllDefect(ex => ZIO.logError(s"SetWebhook exception ${ex.getMessage} - ${ex.getCause}") *>
+        ZIO.succeed(false))
+      //+++
     } yield response
   }
 
@@ -121,7 +123,8 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
       startedBefore <- started.get
       _ <- ZIO.logInfo(s"started = [$startedBefore] BEFORE updateZIO")
 
-      cln <- startBot.forkDaemon
+      cln <- {startBot *>
+        sendMessageToGroups.repeat(Schedule.spaced(3.seconds))}.forkDaemon
 
       startedAfter <- started.get
       _ <- ZIO.logInfo(s"started = [$startedAfter] AFTER updateZIO")
@@ -129,43 +132,31 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
       _ <- srv.join
       _ <- cln.join
 
-      //sender <- sendMessageToGroups.repeat(Schedule.spaced(3.seconds)).forkDaemon
-      //_ <- sender.join
-
     } yield ()
 
-  /*
-  def sendMsgToGroup(groupId: Long,textMessage: String): ZIO[Any,Throwable,Unit]/*Future[Unit]*/ =started.updateZIO { isStarted =>
+
+  def send(groupId: Long, textMessage: String): ZIO[Any,Throwable,Unit]/*Future[Unit]*/ =started.updateZIO { isStarted =>
     for {
       _ <- ZIO.logInfo(s"sendMsgToGroup groupId=$groupId textMessage=$textMessage isStarted=$isStarted")
       response <- request(SendMessage(groupId, s"*${textMessage}*", Some(ParseMode.Markdown))).flatMap {
         msg => ZIO.logInfo(s"sendMsgToGroup result  chat =  ${msg.chat} messageID = ${msg.messageId} ").unit
-        /*
-        case true =>
-          ZIO.logInfo("sendMsgToGroup success.").unit
-        case false =>
-          ZIO.logError("Failed to sendMsgToGroup")
-          throw new RuntimeException("Failed to sendMsgToGroup")
-          */
       }
         .catchAllDefect(ex => ZIO.logError(s"SendMessage exception ${ex.getMessage} - ${ex.getCause}").unit) //+++
       _ <- ZIO.logInfo(s"response = ${response}")
     } yield true
   }
-*/
+
 
 
    def sendMessageToGroups: ZIO[Any,Throwable,Unit] =
      for {
        listGroups <- conn.getActiveGroups
        _ <- ZIO.logInfo(s"sendMessageToGroups listGroups.size = ${listGroups.size}")
-       /*
        _ <- ZIO.foreach(listGroups) { thisGroup =>
-         sendMsgToGroup(thisGroup.groupid, s"Новое сообщение для ${thisGroup.firstname} ${thisGroup.lastname}.")
+         send(thisGroup.groupid, s"Новое сообщение для ${thisGroup.firstname} ${thisGroup.lastname}.")
        }.catchAll {
          case tex: TelegramApiException => ZIO.logError(s"Exception: ${tex.message} - ${tex.cause}")
        }
-       */
      } yield ()
 
   onCommand("/hello") { implicit msg =>
@@ -173,9 +164,12 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
       reply("hello command").ignore
   }
 
-  onCommand("/start") { implicit msg =>
-    onCommandLog(msg) *> sendMessageToGroups *>
-      reply("start command!").ignore
+  onCommand("/start") {
+    implicit msg => for {
+      _ <- onCommandLog(msg)
+      //_ <- sendMessageToGroups.repeat(Schedule.spaced(3.seconds))
+      r <- reply("start command!").ignore
+    } yield r
   }
 
   onCommand("/begin") { implicit msg =>
