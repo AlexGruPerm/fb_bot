@@ -1,6 +1,6 @@
 package service
 
-import common.DbConfig
+import common.{DbConfig, Group}
 import zio.{Task, ZIO, ZLayer}
 
 import java.sql.{Connection, DriverManager, ResultSet, Statement, Types}
@@ -46,6 +46,9 @@ trait DbConnection {
     pstmt = pgc.prepareStatement(s"insert into score(events_id,team1,team1Coeff,team1score,draw,draw_coeff,team2Coeff,team2,team2score) values(?,?,?,?,?,?,?,?,?);")
   } yield pstmt
 
+  def getActiveGroups: ZIO[Any,Nothing,List[Group]]
+
+  def botBlockedByUser(groupid: Long): Task[Int]
 
   def save_fba_load: Task[Int]
   def save_event(
@@ -97,8 +100,6 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
     }
   }
 
-
-
   //todo: check for removing this method
   override def execute(sql: String): Task[String] =
     for {
@@ -110,6 +111,34 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
       }
     } yield stex.toString
 
+  def botBlockedByUser(groupid: Long): Task[Int] = for {
+    pgc <- connection
+    pstmt = pgc.prepareStatement("update tgroup set is_blck_by_user_dt = timeofday()::TIMESTAMP where groupId = ?;")
+    _ <- ZIO.succeed {
+      pstmt.setLong(1, groupid)
+    }
+    resUpdate = pstmt.executeUpdate()
+  } yield resUpdate
+
+  def getActiveGroups: ZIO[Any,Nothing,List[Group]] =
+    (for {
+      pgc <- connection
+      pstm = pgc.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
+      rs = pstm.executeQuery("select t.groupid,t.firstname,t.lastname from tgroup t where t.is_blck_by_user_dt is null")
+      results =
+        Iterator.continually(rs).takeWhile(_.next()).map{
+          rsi => Group(
+            rsi.getLong("groupid"),
+            rsi.getString("firstname"),
+            rsi.getString("lastname")
+          )
+          //columns.map(cname => rsi.getString(cname._1))
+        }.toList
+      _ <- ZIO.logInfo(s"THERE IS ${results.size} ACTIVE GROUPS.")
+    } yield results).catchAll {
+       ex: Throwable =>
+        ZIO.logError(s"FBAE-03 Can't get active groups. [${ex.getMessage}] [${ex.getCause}]").as(List.empty[Group])
+    }
 
   override def save_fba_load: Task[Int] = for {
     pstmt <- prepStmtFbaLoad

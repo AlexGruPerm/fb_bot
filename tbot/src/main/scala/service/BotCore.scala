@@ -1,8 +1,9 @@
 package service
 
+import com.bot4s.telegram.api.TelegramApiException
 import com.bot4s.telegram.api.declarative.Commands
 import com.bot4s.telegram.cats.TelegramBot
-import com.bot4s.telegram.methods.SetWebhook
+import com.bot4s.telegram.methods.{ParseMode, SendMessage, SetWebhook}
 import com.bot4s.telegram.models.{InputFile, Message, Update}
 import com.bot4s.telegram.models.UpdateType.Filters.{InlineUpdates, MessageUpdates}
 import com.bot4s.telegram.models.UpdateType.UpdateType
@@ -17,7 +18,8 @@ import zhttp.service.Server
 import zhttp.service.server.ServerChannelFactory
 import zhttp.service.EventLoopGroup
 import zhttp.http.{Http, Method, Request, Response}
-import zio.{Ref, Schedule, Scope, Task, ZIO}
+import zio.{Ref, Schedule, Scope, Task, UIO, ZIO}
+import zio.{durationInt}
 import zio.interop.catz._
 
 import java.io.{File, FileInputStream, IOException, InputStream}
@@ -27,11 +29,15 @@ import javax.net.ssl.{KeyManagerFactory, TrustManagerFactory}
 import java.time.Duration
 import java.nio.file.Files
 import java.nio.file.Paths
+import common.Group
+import java.time.Duration
+
+import scala.concurrent.Future
 
 abstract class FbBot(val conf: BotConfig)
   extends TelegramBot[Task](conf.token, AsyncHttpClientZioBackend.usingClient(zio.Runtime.default, asyncHttpClient()))
 
-class telegramBotZio(val config :BotConfig, private val started: Ref.Synchronized[Boolean])
+class telegramBotZio(val config :BotConfig, conn: DbConnection, private val started: Ref.Synchronized[Boolean])
   extends FbBot(config)
     with Commands[Task]
 {
@@ -122,7 +128,45 @@ class telegramBotZio(val config :BotConfig, private val started: Ref.Synchronize
 
       _ <- srv.join
       _ <- cln.join
+
+      //sender <- sendMessageToGroups.repeat(Schedule.spaced(3.seconds)).forkDaemon
+      //_ <- sender.join
+
     } yield ()
+
+  /*
+  def sendMsgToGroup(groupId: Long,textMessage: String): ZIO[Any,Throwable,Unit]/*Future[Unit]*/ =started.updateZIO { isStarted =>
+    for {
+      _ <- ZIO.logInfo(s"sendMsgToGroup groupId=$groupId textMessage=$textMessage isStarted=$isStarted")
+      response <- request(SendMessage(groupId, s"*${textMessage}*", Some(ParseMode.Markdown))).flatMap {
+        msg => ZIO.logInfo(s"sendMsgToGroup result  chat =  ${msg.chat} messageID = ${msg.messageId} ").unit
+        /*
+        case true =>
+          ZIO.logInfo("sendMsgToGroup success.").unit
+        case false =>
+          ZIO.logError("Failed to sendMsgToGroup")
+          throw new RuntimeException("Failed to sendMsgToGroup")
+          */
+      }
+        .catchAllDefect(ex => ZIO.logError(s"SendMessage exception ${ex.getMessage} - ${ex.getCause}").unit) //+++
+      _ <- ZIO.logInfo(s"response = ${response}")
+    } yield true
+  }
+*/
+
+
+   def sendMessageToGroups: ZIO[Any,Throwable,Unit] =
+     for {
+       listGroups <- conn.getActiveGroups
+       _ <- ZIO.logInfo(s"sendMessageToGroups listGroups.size = ${listGroups.size}")
+       /*
+       _ <- ZIO.foreach(listGroups) { thisGroup =>
+         sendMsgToGroup(thisGroup.groupid, s"Новое сообщение для ${thisGroup.firstname} ${thisGroup.lastname}.")
+       }.catchAll {
+         case tex: TelegramApiException => ZIO.logError(s"Exception: ${tex.message} - ${tex.cause}")
+       }
+       */
+     } yield ()
 
   onCommand("/hello") { implicit msg =>
     onCommandLog(msg) *>
@@ -130,7 +174,7 @@ class telegramBotZio(val config :BotConfig, private val started: Ref.Synchronize
   }
 
   onCommand("/start") { implicit msg =>
-    onCommandLog(msg) *>
+    onCommandLog(msg) *> sendMessageToGroups *>
       reply("start command!").ignore
   }
 
