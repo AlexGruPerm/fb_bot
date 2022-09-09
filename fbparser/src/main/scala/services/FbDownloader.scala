@@ -78,7 +78,7 @@ import java.sql.Statement
         //pgc <- conn.connection
         idFbaLoad <- conn.save_fba_load
 
-        _ <- ZIO.foreach(evs.filter(ei => ei.markets.nonEmpty && ei.timer.nonEmpty && ei.markets.exists(mf => mf.ident == "Results"))){ev =>
+        _ <- ZIO.foreachDiscard(evs.filter(ei => ei.markets.nonEmpty && ei.timer.nonEmpty && ei.markets.exists(mf => mf.ident == "Results"))){ev =>
           conn.save_event(
             idFbaLoad,
             ev.id,
@@ -93,9 +93,9 @@ import java.sql.Statement
             ev.team2,
             ev.startTimeTimestamp,
             ev.eventName
-          ).flatMap { idFbaEvent => /*ZIO.logInfo(s" Inserted idFbaEvent = ${idFbaEvent}") *>*/
+          ).flatMap { idFbaEvent =>
             //scores insert
-            ZIO.foreach(ev.markets.filter(mf => mf.ident == "Results" && mf.rows.nonEmpty && mf.rows.size >= 2)) { m =>
+            ZIO.foreachDiscard(ev.markets.filter(mf => mf.ident == "Results" && mf.rows.nonEmpty && mf.rows.size >= 2)) { m =>
               (if (m.rows.nonEmpty &&
                 m.rows.size >= 2 &&
                 m.rows(0).cells.nonEmpty &&
@@ -116,7 +116,7 @@ import java.sql.Statement
                   r1.cells(3).value.getOrElse(0.0),
                   r0.cells(3).caption.getOrElse("*"),
                   ev.scores(0).head.c2
-                ).map(_/*resInsertEventScore*/ => ZIO.unit /*ZIO.logInfo(s" Inserted ${resInsertEventScore} scores for idFbaEvent = ${idFbaEvent}")*/)
+                ).map(_ => ZIO.unit)
 
               } else {
                 console.printLine("not interested!!!")
