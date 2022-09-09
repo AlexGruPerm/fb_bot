@@ -25,6 +25,10 @@ import java.util.Properties
 //1. service interface - get config
 trait DbConnection {
 
+  def connection : Task[Connection]
+  def execute(sql: String): Task[String]
+
+
   val prepStmtFbaLoad = for{
     pgc <- connection
     pstmt = pgc.prepareStatement("insert into fba_load default values;", Statement.RETURN_GENERATED_KEYS)
@@ -33,8 +37,8 @@ trait DbConnection {
   val prepStmtEvents = for {
     pgc <- connection
     pstmt = pgc.prepareStatement(
-    s"insert into events(fba_load_id, event_id,event_number,competitionName,skid,skname,timerSeconds,team1Id,team1,team2Id,team2,startTimeTimestamp,eventName) values(?,?,?,?,?,?,?,?,?,?,?,?,?);"
-    ,Statement.RETURN_GENERATED_KEYS)
+      s"insert into events(fba_load_id, event_id,event_number,competitionName,skid,skname,timerSeconds,team1Id,team1,team2Id,team2,startTimeTimestamp,eventName) values(?,?,?,?,?,?,?,?,?,?,?,?,?);"
+      ,Statement.RETURN_GENERATED_KEYS)
   } yield pstmt
 
   val prepStmtScore = for {
@@ -42,8 +46,7 @@ trait DbConnection {
     pstmt = pgc.prepareStatement(s"insert into score(events_id,team1,team1Coeff,team1score,draw,draw_coeff,team2Coeff,team2,team2score) values(?,?,?,?,?,?,?,?,?);")
   } yield pstmt
 
-  def connection : Task[Connection]
-  def execute(sql: String): Task[String]
+
   def save_fba_load: Task[Int]
   def save_event(
                   idFbaLoad: Long,
@@ -71,6 +74,7 @@ trait DbConnection {
                    team2caption: String,
                    team2score: String,
                 ): Task[Int]
+
 }
 
 //2.accessor method inside companion object
@@ -93,6 +97,8 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
     }
   }
 
+
+
   //todo: check for removing this method
   override def execute(sql: String): Task[String] =
     for {
@@ -104,15 +110,18 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
       }
     } yield stex.toString
 
+
   override def save_fba_load: Task[Int] = for {
     pstmt <- prepStmtFbaLoad
     _ = pstmt.executeUpdate()
     keyset = pstmt.getGeneratedKeys
     _ = keyset.next()
     idFbaLoad: Int = keyset.getInt(1)
-    //todo: remove this output
-    //_ <- ZIO.logInfo(s"Into fba_load inserted row with ID = ${idFbaLoad}")
+    _ = pstmt.close()
+    _ = pstmt.getConnection.close()
   } yield idFbaLoad
+
+
 
   def save_event(
                   idFbaLoad: Long,
@@ -149,9 +158,12 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
      keysetEvnts = pstmt.getGeneratedKeys
      _ = keysetEvnts.next()
      idFbaEvent :Int  = keysetEvnts.getInt(1)
-    //_ <- ZIO.logInfo(s"Into events inserted ${resInsertEvent} rows for fba_load.id = ${idFbaLoad}")
+    _ = pstmt.close()
+    _ = pstmt.getConnection.close()
   } yield idFbaEvent
 
+
+  //todo: use batch here https://www.vertica.com/docs/9.2.x/HTML/Content/Authoring/ConnectingToVertica/ClientJDBC/BatchInsertsUsingJDBCPreparedStatements.htm
   def save_score(
                   idFbaEvent: Long,
                   team1caption: String,
@@ -163,11 +175,6 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
                   team2caption: String,
                   team2score: String,
                 ): Task[Int] = for {
-    /*
-    pgc <- connection
-    //todo: remove prepare from each call
-    pstmt = pgc.prepareStatement(s"insert into score(events_id,team1,team1Coeff, team1score, draw, draw_coeff, team2Coeff, team2, team2score) values(?,?,?,?,?,?,?,?,?);")
-    */
     pstmt <- prepStmtScore
     insertedRows <- ZIO.succeed {
       pstmt.setLong(1, idFbaEvent)
@@ -181,8 +188,12 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
       pstmt.setString(9, team2score)
       pstmt.executeUpdate()
     }
-    _ <- ZIO.logInfo(s" In Score inserted ${insertedRows} rows.")
+    //insertedRows <- ZIO.succeed(123)
+    //_ <- ZIO.logInfo(s"Inserted ${insertedRows} rows into score for idFbaEvent = ${idFbaEvent}")
+    _ = pstmt.close()
+    _ = pstmt.getConnection.close()
   } yield insertedRows
+
 
 }
 

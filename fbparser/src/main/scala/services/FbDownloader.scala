@@ -63,13 +63,11 @@ import java.sql.Statement
         time <- clock.currentDateTime
         _ <- console.printLine(s"$time - $url")
         _ <- console.printLine("Begin request")
-        //basicReq  = basicRequest.post(uri"$url")
         basicReq  = basicRequest.post(uri"$url").response(asJson[LiveEventsResponse])
         response <- client.send(basicReq)
         _ <- console.printLine(s" response statusText    = ${response.statusText}")
         _ <- console.printLine(s" response code          = ${response.code}")
 
-        //_ <- console.printLine(s" RES = ${response.body.right.get} ")
         _ <- console.printLine(" ")
         _ <- console.printLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
         _ <- console.printLine(s"   Events count = ${response.body.right.get.events.size}")
@@ -79,32 +77,8 @@ import java.sql.Statement
 
         //pgc <- conn.connection
         idFbaLoad <- conn.save_fba_load
-       /*
-        pstmt = pgc.prepareStatement(
-          s"insert into events(fba_load_id, event_id,event_number,competitionName, skid, skname, timerSeconds, team1Id,team1, team2Id,team2, startTimeTimestamp, eventName) values(?,?,?,?,?,?,?,?,?,?,?,?,?);"
-          ,Statement.RETURN_GENERATED_KEYS)
-        */
-        _ <- ZIO.foreach(evs.filter(ei => ei.markets.nonEmpty && ei.timer.nonEmpty && ei.markets.exists(mf => mf.ident == "Results"))){ev =>
-          /*
-              pstmt.setLong(1, idFbaLoad)
-              pstmt.setLong(2, ev.id)
-              pstmt.setLong(3, ev.number)
-              pstmt.setString(4, ev.competitionName)
-              pstmt.setLong(5, ev.skId)
-              pstmt.setString(6, ev.skName)
-              pstmt.setLong(7, ev.timerSeconds.getOrElse(0L))
-              pstmt.setLong(8, ev.team1Id)
-              pstmt.setString(9, ev.team1)
-              pstmt.setLong(10, ev.team2Id)
-              pstmt.setString(11, ev.team2)
-              pstmt.setLong(12, ev.startTimeTimestamp)
-              pstmt.setString(13, ev.eventName)
-              val resInsertEvent = pstmt.executeUpdate()
-              val keysetEvnts = pstmt.getGeneratedKeys()
-              keysetEvnts.next()
-              val idFbaEvent = keysetEvnts.getInt(1)
-          */
 
+        _ <- ZIO.foreach(evs.filter(ei => ei.markets.nonEmpty && ei.timer.nonEmpty && ei.markets.exists(mf => mf.ident == "Results"))){ev =>
           conn.save_event(
             idFbaLoad,
             ev.id,
@@ -119,8 +93,7 @@ import java.sql.Statement
             ev.team2,
             ev.startTimeTimestamp,
             ev.eventName
-          ).map { idFbaEvent =>
-            ZIO.logInfo(s" Event insertion with ID ${idFbaEvent} row with Event ID = ${idFbaLoad}") *>
+          ).flatMap { idFbaEvent => /*ZIO.logInfo(s" Inserted idFbaEvent = ${idFbaEvent}") *>*/
             //scores insert
             ZIO.foreach(ev.markets.filter(mf => mf.ident == "Results" && mf.rows.nonEmpty && mf.rows.size >= 2)) { m =>
               (if (m.rows.nonEmpty &&
@@ -132,6 +105,7 @@ import java.sql.Statement
               ) {
                 val r0 = m.rows(0)
                 val r1 = m.rows(1)
+
                 conn.save_score(
                   idFbaEvent,
                   r0.cells(1).caption.getOrElse("*"),
@@ -142,25 +116,8 @@ import java.sql.Statement
                   r1.cells(3).value.getOrElse(0.0),
                   r0.cells(3).caption.getOrElse("*"),
                   ev.scores(0).head.c2
-                ).flatMap(resInsertEventScore =>  ZIO.logInfo(s" Inserted ${resInsertEventScore} scores"))
-                /*
-                val pstmtS = pgc.prepareStatement(s"insert into score(events_id,team1,team1Coeff, team1score, draw, draw_coeff, team2Coeff, team2, team2score) values(?,?,?,?,?,?,?,?,?);")
-                pstmtS.setLong(1, idFbaEvent)
-                pstmtS.setString(2, r0.cells(1).caption.getOrElse("*"))
-                pstmtS.setDouble(3, r1.cells(1).value.getOrElse(0.0))
-                pstmtS.setString(4, ev.scores(0).head.c1)
-                pstmtS.setString(5, r0.cells(2).caption.getOrElse("*"))
-                pstmtS.setDouble(6, r1.cells(2).value.getOrElse(0.0))
-                pstmtS.setDouble(7, r1.cells(3).value.getOrElse(0.0))
-                pstmtS.setString(8, r0.cells(3).caption.getOrElse("*"))
-                pstmtS.setString(9, ev.scores(0).head.c2)
-                val resInsertEventScore = pstmtS.executeUpdate()
-                */
+                ).map(_/*resInsertEventScore*/ => ZIO.unit /*ZIO.logInfo(s" Inserted ${resInsertEventScore} scores for idFbaEvent = ${idFbaEvent}")*/)
 
-                //console.printLine(s" Scores inserted : ${resInsertEventScore}")
-                //console.printLine{s"${r0.cells(1).caption} - ${r1.cells(1).value} score (this team) : ${ev.scores(0).head.c1}"} *>
-                //console.printLine(s"${r0.cells(2).caption} - ${r1.cells(2).value}") *>
-                //console.printLine(s"${r0.cells(3).caption} - ${r1.cells(3).value} score (this team) : ${ev.scores(0).head.c1}")
               } else {
                 console.printLine("not interested!!!")
               })
@@ -170,6 +127,8 @@ import java.sql.Statement
         }
 
         //full output one event
+        //Just for visual debug
+        /*
         _ <- ZIO.foreach(evs.filter(ei => ei.markets.nonEmpty && ei.timer.nonEmpty && ei.markets.exists(mf => mf.ident == "Results"))){
           e => console.printLine(s" ${e.id} - ${e.skName} -[ ${e.team1} - ${e.team2} ] - ${e.place} - ${e.timer}") *>
             ZIO.foreach(e.markets.filter(mf => mf.ident == "Results" && mf.rows.nonEmpty && mf.rows.size >= 2)){
@@ -192,8 +151,8 @@ import java.sql.Statement
                 })
                   }
         }
-
         _ <- console.printLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+        */
         res <- ZIO.succeed(response.body.right.get)
       } yield res
   }
