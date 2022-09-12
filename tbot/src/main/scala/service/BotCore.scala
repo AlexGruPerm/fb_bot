@@ -3,11 +3,11 @@ package service
 import com.bot4s.telegram.api.TelegramApiException
 import com.bot4s.telegram.api.declarative.Commands
 import com.bot4s.telegram.cats.TelegramBot
-import com.bot4s.telegram.methods.{ParseMode, SendMessage, SetWebhook}
-import com.bot4s.telegram.models.{InputFile, Message, Update}
+import com.bot4s.telegram.methods.{ApproveChatJoinRequest, DeclineChatJoinRequest, ParseMode, SendMessage, SetChatMenuButton, SetWebhook}
+import com.bot4s.telegram.models.{InputFile, MenuButtonCommands, MenuButtonDefault, Message, Update}
 import com.bot4s.telegram.models.UpdateType.Filters.{InlineUpdates, MessageUpdates}
 import com.bot4s.telegram.models.UpdateType.UpdateType
-import common.BotConfig
+import common.{AdviceGroup, BotConfig, Group}
 import io.netty.handler.ssl.SslContextBuilder
 import org.asynchttpclient.Dsl.asyncHttpClient
 import sttp.client3.asynchttpclient.zio.AsyncHttpClientZioBackend
@@ -19,7 +19,7 @@ import zhttp.service.server.ServerChannelFactory
 import zhttp.service.EventLoopGroup
 import zhttp.http.{Http, Method, Request, Response}
 import zio.{Ref, Schedule, Scope, Task, UIO, ZIO}
-import zio.{durationInt}
+import zio.durationInt
 import zio.interop.catz._
 
 import java.io.{File, FileInputStream, IOException, InputStream}
@@ -29,9 +29,7 @@ import javax.net.ssl.{KeyManagerFactory, TrustManagerFactory}
 import java.time.Duration
 import java.nio.file.Files
 import java.nio.file.Paths
-import common.Group
 import java.time.Duration
-
 import scala.concurrent.Future
 
 abstract class FbBot(val conf: BotConfig)
@@ -124,7 +122,8 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
       _ <- ZIO.logInfo(s"started = [$startedBefore] BEFORE updateZIO")
 
       cln <- {startBot *>
-        sendMessageToGroups.repeat(Schedule.spaced(3.seconds))}.forkDaemon
+        sendAdvices.repeat(Schedule.spaced(5.seconds))
+      }.forkDaemon
 
       startedAfter <- started.get
       _ <- ZIO.logInfo(s"started = [$startedAfter] AFTER updateZIO")
@@ -135,26 +134,33 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
     } yield ()
 
 
-  def send(groupId: Long, textMessage: String): ZIO[Any,Throwable,Unit]/*Future[Unit]*/ =started.updateZIO { isStarted =>
-    for {
-      _ <- ZIO.logInfo(s"sendMsgToGroup groupId=$groupId textMessage=$textMessage isStarted=$isStarted")
-      response <- request(SendMessage(groupId, s"*${textMessage}*", Some(ParseMode.Markdown))).flatMap {
-        msg => ZIO.logInfo(s"sendMsgToGroup result  chat =  ${msg.chat} messageID = ${msg.messageId} ").unit
-      }
-        .catchAllDefect(ex => ZIO.logError(s"SendMessage exception ${ex.getMessage} - ${ex.getCause}").unit) //+++
-      _ <- ZIO.logInfo(s"response = ${response}")
-    } yield true
-  }
+  def send(advGrp: AdviceGroup): ZIO[Any,Throwable,Unit] =
+    for {/*
+      _ <- request(SetChatMenuButton(322134338,Some(MenuButtonCommands(`type` = "new")))) *>
+       ZIO.logInfo(s"......xxxxxxxxx.............${advGrp.groupId.toString}")
+      */
+       _ <- (request(SendMessage(advGrp.groupId, advGrp.adviceText, Some(ParseMode.HTML)))
+        *> conn.saveSentGrp(advGrp).unit)
+        .catchAllDefect(ex => ZIO.logError(s"saveSentGrp Exception [${ex.getMessage}]") *>
+            conn.botBlockedByUser(advGrp.groupId).when(ex.getMessage == "Forbidden: bot was blocked by the user")
+        ) //todo: addehere final saving sent_datetime into fba.advice
+    } yield ()
+/*
+      _ <- (request(SendMessage(advGrp.groupId, advGrp.adviceText, Some(ParseMode.HTML)))
+        *> conn.saveSentGrp(advGrp).unit)
+        .catchAllDefect(ex => ZIO.logError(s"saveSentGrp Exception [${ex.getMessage}]") *>
+            conn.botBlockedByUser(advGrp.groupId).when(ex.getMessage == "Forbidden: bot was blocked by the user")
+        ) //todo: addehere final saving sent_datetime into fba.advice
+  */
 
 
 
-   def sendMessageToGroups: ZIO[Any,Throwable,Unit] =
+   def sendAdvices: ZIO[Any,Throwable,Unit] =
      for {
-       listGroups <- conn.getActiveGroups
-       _ <- ZIO.logInfo(s"sendMessageToGroups listGroups.size = ${listGroups.size}")
-       _ <- ZIO.foreach(listGroups) { thisGroup =>
-         send(thisGroup.groupid, s"Новое сообщение для ${thisGroup.firstname} ${thisGroup.lastname}.")
-       }.catchAll {
+       advGrp <- conn.getAdvicesGroups
+       _ <- ZIO.logInfo(s"sendMessageToGroups listGroups.size = ${advGrp.size}")
+       _ <- ZIO.foreach(advGrp){thisRow => send(thisRow)}
+         .catchAll {
          case tex: TelegramApiException => ZIO.logError(s"Exception: ${tex.message} - ${tex.cause}")
        }
      } yield ()
@@ -165,17 +171,64 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
   }
 
   onCommand("/start") {
-    implicit msg => for {
-      _ <- onCommandLog(msg)
-      //_ <- sendMessageToGroups.repeat(Schedule.spaced(3.seconds))
-      r <- reply("start command!").ignore
-    } yield r
+    implicit msg =>
+      for {
+        _ <- onCommandLog(msg)
+        _ <- conn.save_group(
+          /*
+          390495679L,
+          "first",
+          "last",
+          "username",
+          "ru",
+          0.0,
+          0.0
+          */
+
+          msg.chat.id,
+          msg.from.map(u => u.firstName).getOrElse(" "),
+          msg.from.map(u => u.lastName.getOrElse(" ")).getOrElse(" "),
+          msg.from.map(u => u.username.getOrElse(" ")).getOrElse(" "),
+          msg.from.map(u => u.languageCode.getOrElse(" ")).getOrElse(" "),
+          msg.location.map(l => l.latitude).getOrElse(0.0),
+          msg.location.map(l => l.longitude).getOrElse(0.0)
+
+        )
+        r <- reply("start command!").ignore
+      } yield r
   }
 
   onCommand("/begin") { implicit msg =>
     onCommandLog(msg) *>
       reply("begin command!").ignore
   }
+
+  onCommand("/help") { implicit msg =>
+    onCommandLog(msg) *>
+      reply("help command!").ignore
+  }
+
+  onCommand("/author") { implicit msg =>
+    onCommandLog(msg) *>
+      reply("author command!").ignore
+  }
+
+  onCommand("/getb") { implicit msg =>
+    onCommandLog(msg) *>
+      reply("getb command!").ignore
+  }
+
+  /*
+  val accept: Boolean = false //accept = false for all requests for a while
+  // join not ot bot, join to chat (group).
+  onJoinRequest { joinRequest =>
+    if (accept) {
+      request(ApproveChatJoinRequest(joinRequest.chat.chatId, joinRequest.from.id)).void
+    } else {
+      request(DeclineChatJoinRequest(joinRequest.chat.chatId, joinRequest.from.id)).void
+    }
+  }
+  */
 
   def onCommandLog(msg :Message) :ZIO[Any,IOException,Unit] = {
     for {

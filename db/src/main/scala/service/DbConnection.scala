@@ -1,6 +1,6 @@
 package service
 
-import common.{DbConfig, Group}
+import common.{DbConfig, Group, AdviceGroup}
 import zio.{Task, ZIO, ZLayer}
 
 import java.sql.{Connection, DriverManager, ResultSet, Statement, Types}
@@ -46,9 +46,32 @@ trait DbConnection {
     pstmt = pgc.prepareStatement(s"insert into score(events_id,team1,team1Coeff,team1score,draw,draw_coeff,team2Coeff,team2,team2score) values(?,?,?,?,?,?,?,?,?);")
   } yield pstmt
 
-  def getActiveGroups: ZIO[Any,Nothing,List[Group]]
+  val prepStmtGroup = for {
+    pgc <- connection
+    pstmt = pgc.prepareStatement("INSERT INTO tgroup(groupid,firstname,lastname,username,lang,loc_latitude,loc_longitude)\n    " +
+      "VALUES(?,?,?,?,?,?,?)\n    " +
+      "ON CONFLICT (groupid)\n    " +
+      "do update set is_blck_by_user_dt = null, last_cmd_start_dt = timeofday()::TIMESTAMP;")
+  } yield pstmt
+
+  val prepStmtSaveSentGrp = for {
+    pgc <- connection
+    pstmt = pgc.prepareStatement("insert into fba.advice_sent(advice_id,groupid) values(?,?);")
+  } yield pstmt
+
+  def getAdvicesGroups: ZIO[Any,Nothing,List[AdviceGroup]]
 
   def botBlockedByUser(groupid: Long): Task[Int]
+
+  def save_group(
+                  chatId: Long,
+                  firstName: String,
+                  lastName: String,
+                  username: String,
+                  languageCode: String,
+                  latitude: Double,
+                  longitude: Double,
+                ): Task[Int]
 
   def save_fba_load: Task[Int]
   def save_event(
@@ -77,6 +100,8 @@ trait DbConnection {
                    team2caption: String,
                    team2score: String,
                 ): Task[Int]
+
+  def saveSentGrp(advGrp: AdviceGroup): Task[Int]
 
 }
 
@@ -118,26 +143,37 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
       pstmt.setLong(1, groupid)
     }
     resUpdate = pstmt.executeUpdate()
+    _ = pstmt.close()
+    _ = pstmt.getConnection.close()
   } yield resUpdate
 
-  def getActiveGroups: ZIO[Any,Nothing,List[Group]] =
+  def getAdvicesGroups: ZIO[Any,Nothing,List[AdviceGroup]] =
     (for {
       pgc <- connection
-      pstm = pgc.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
-      rs = pstm.executeQuery("select t.groupid,t.firstname,t.lastname from tgroup t where t.is_blck_by_user_dt is null")
+      pstmt = pgc.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
+      rs = pstmt.executeQuery("select a.id as advice_id, t.groupid, a.advice_text " +
+                                   " from   fba.tgroup t,       " +
+                                   "        fba.advice a" +
+                                   " where  t.is_blck_by_user_dt is null and " +
+                                   "        a.sent_datetime is null and      " +
+                                   "        (a.id,t.groupid) not in ( " +
+                                   "                                  select ast.advice_id,ast.groupid " +
+                                   "                                    from fba.advice_sent ast  )")
       results =
         Iterator.continually(rs).takeWhile(_.next()).map{
-          rsi => Group(
+          rsi => AdviceGroup(
+            rsi.getLong("advice_id"),
             rsi.getLong("groupid"),
-            rsi.getString("firstname"),
-            rsi.getString("lastname")
+            rsi.getString("advice_text")
           )
           //columns.map(cname => rsi.getString(cname._1))
         }.toList
-      _ <- ZIO.logInfo(s"THERE IS ${results.size} ACTIVE GROUPS.")
+      _ <- ZIO.logInfo(s"There are ${results.size} advice-group(s) to send.")
+      _ = pstmt.close()
+      _ = pstmt.getConnection.close()
     } yield results).catchAll {
        ex: Throwable =>
-        ZIO.logError(s"FBAE-03 Can't get active groups. [${ex.getMessage}] [${ex.getCause}]").as(List.empty[Group])
+        ZIO.logError(s"FBAE-03 Can't get active groups. [${ex.getLocalizedMessage}] [${ex.getMessage}] [${ex.getCause}]").as(List.empty[AdviceGroup])
     }
 
   override def save_fba_load: Task[Int] = for {
@@ -150,7 +186,50 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
     _ = pstmt.getConnection.close()
   } yield idFbaLoad
 
+  def saveSentGrp(advGrp: AdviceGroup): Task[Int] = for {
+    pstmt <- prepStmtSaveSentGrp
+    res <- ZIO.succeed{
+      pstmt.setLong(1, advGrp.adviceId)
+      pstmt.setLong(2, advGrp.groupId)
+      pstmt.executeUpdate()
+    }
+    _ = pstmt.close()
+    _ = pstmt.getConnection.close()
+  } yield res
 
+  override def save_group(
+                  chatId: Long,
+                  firstName: String,
+                  lastName: String,
+                  username: String,
+                  languageCode: String,
+                  latitude: Double,
+                  longitude: Double,
+                ): Task[Int] = for {
+    pstmt <- prepStmtGroup
+    _ <- ZIO.logInfo(s" >>>>>>>>>>>>>>>>>  save_group chatId=$chatId")
+    _ <- ZIO.logInfo(s" >>>>>>>>>>>>>>>>>  save_group firstName=$firstName")
+    _ <- ZIO.logInfo(s" >>>>>>>>>>>>>>>>>  save_group lastName=$lastName")
+    _ <- ZIO.logInfo(s" >>>>>>>>>>>>>>>>>  save_group username=$username")
+    _ <- ZIO.logInfo(s" >>>>>>>>>>>>>>>>>  save_group languageCode=$languageCode")
+    _ <- ZIO.logInfo(s" >>>>>>>>>>>>>>>>>  save_group latitude=$latitude")
+    _ <- ZIO.logInfo(s" >>>>>>>>>>>>>>>>>  save_group longitude=$longitude")
+
+    res <- ZIO.succeed{
+      pstmt.setLong(  1, chatId)
+      pstmt.setString(2,firstName)
+      pstmt.setString(3,lastName)
+      pstmt.setString(4,username)
+      pstmt.setString(5,languageCode)
+      pstmt.setDouble(6,latitude)
+      pstmt.setDouble(7,longitude)
+      pstmt.executeUpdate()
+    }
+
+    _ = pstmt.close()
+    _ = pstmt.getConnection.close()
+    _ <- ZIO.logInfo(s"<<<<<<<<<<<<<<<<< save_group result res = $res")
+  } yield res
 
   def save_event(
                   idFbaLoad: Long,
