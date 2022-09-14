@@ -44,6 +44,8 @@ import java.sql.Statement
   //1. service interface - read Json string from given url.
   trait FbDownloader {
     def getUrlContent(url: String): Task[LiveEventsResponse]
+    //Return Task[Count successful inserted advices]
+    def checkAdvice: Task[Int]
   }
 
   //2. accessor method inside companion objects
@@ -155,6 +157,13 @@ import java.sql.Statement
         */
         res <- ZIO.succeed(response.body.right.get)
       } yield res
+
+    //Return Task[Count successful inserted advices]
+    def checkAdvice: Task[Int] = for {
+      res <- conn.saveAdvices
+      //_ <- ZIO.logInfo(s"checkAdvice in FbDownloader res= [$res]")
+    } yield res
+
   }
 
   //4. converting service implementation into ZLayer

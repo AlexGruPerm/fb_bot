@@ -158,7 +158,7 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
    def sendAdvices: ZIO[Any,Throwable,Unit] =
      for {
        advGrp <- conn.getAdvicesGroups
-       _ <- ZIO.logInfo(s"sendMessageToGroups listGroups.size = ${advGrp.size}")
+       //_ <- ZIO.logInfo(s"sendMessageToGroups listGroups.size = ${advGrp.size}")
        _ <- ZIO.foreach(advGrp){thisRow => send(thisRow)}
          .catchAll {
          case tex: TelegramApiException => ZIO.logError(s"Exception: ${tex.message} - ${tex.cause}")
@@ -197,6 +197,8 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
         r <- reply("start command!").ignore
       } yield r
   }
+
+  //todo: save all command into log, may be inside onCommandLog(msg)
 
   onCommand("/begin") { implicit msg =>
     onCommandLog(msg) *>

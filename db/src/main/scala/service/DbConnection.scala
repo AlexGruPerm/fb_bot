@@ -1,6 +1,6 @@
 package service
 
-import common.{DbConfig, Group, AdviceGroup}
+import common.{Advice, AdviceGroup, DbConfig, Group}
 import zio.{Task, ZIO, ZLayer}
 
 import java.sql.{Connection, DriverManager, ResultSet, Statement, Types}
@@ -59,6 +59,11 @@ trait DbConnection {
     pstmt = pgc.prepareStatement("insert into fba.advice_sent(advice_id,groupid) values(?,?);")
   } yield pstmt
 
+  val prepStmtSaveAdvice = for {
+    pgc <- connection
+    pstmt = pgc.prepareStatement("insert into fba.advice(event_id,advice_text) values(?,?);")
+  } yield pstmt
+
   def getAdvicesGroups: ZIO[Any,Nothing,List[AdviceGroup]]
 
   def botBlockedByUser(groupid: Long): Task[Int]
@@ -103,6 +108,7 @@ trait DbConnection {
 
   def saveSentGrp(advGrp: AdviceGroup): Task[Int]
 
+  def saveAdvices: Task[Int]
 }
 
 //2.accessor method inside companion object
@@ -176,6 +182,58 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
         ZIO.logError(s"FBAE-03 Can't get active groups. [${ex.getLocalizedMessage}] [${ex.getMessage}] [${ex.getCause}]").as(List.empty[AdviceGroup])
     }
 
+  def saveAdvices: Task[Int] =
+    (for {
+      //_ <- ZIO.logInfo("Begin saveAdvices")
+      pgc <- connection
+      pstmt = pgc.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
+      rs = pstmt.executeQuery("select * from fba.v_football")
+      listAdvice =
+        Iterator.continually(rs).takeWhile(_.next()).map{
+          rsi => Advice(
+            rsi.getLong("event_id"),
+            rsi.getString("skname"),
+            rsi.getString("competitionname"),
+            rsi.getString("eventname"),
+            rsi.getDouble("team1coeff"),
+            rsi.getDouble("draw_coeff"),
+            rsi.getDouble("team2coeff"),
+            rsi.getString("team1score"),
+            rsi.getString("team2score"),
+            rsi.getInt("rest_mis")
+          )
+          //columns.map(cname => rsi.getString(cname._1))
+        }.toList
+      _ <- ZIO.logInfo(s"There are [${listAdvice.size}] rows in saveAdvices.").when(listAdvice.nonEmpty)
+      //todo: here plase to insert advice into fba.advice
+
+      pstmt <- prepStmtSaveAdvice
+      _ <- ZIO.foreachDiscard(listAdvice){
+        adv => ZIO.attempt{
+          pstmt.setLong(1, adv.event_id)
+          //"<b>Рекомендация № 1</b>"
+          pstmt.setString(2,
+              s"<u>${adv.skname} (${adv.competitionname})</u>"+
+              s"До конца матча <b>${adv.rest_mis.toString}</b> минут."+
+              s"<pre>           ${adv.eventname}"+
+              s"  Коэфф.     ${adv.team1coeff.toString}  ${adv.draw_coeff.toString}  ${adv.team2coeff.toString}"+
+              s"  Счет          ${adv.team1score}  :    ${adv.team2score} </pre>"+
+              s"  <b>Совет</b> поставить на <b>${List(adv.team1coeff,adv.draw_coeff,adv.team2coeff).min.toString}</b>"+
+              s"(дата рекомендации 13.09.2022 01:51:12 Мск.)"
+          )
+          pstmt.executeUpdate()
+        }.catchAll {
+          ex: Throwable =>
+            ZIO.logError(s"SAE-02 Can't get list of advices. [${ex.getLocalizedMessage}] [${ex.getMessage}] [${ex.getCause}]").as(0)
+        }
+      }
+      _ = pstmt.close()
+      _ = pstmt.getConnection.close()
+    } yield listAdvice.size).catchAll {
+      ex: Throwable =>
+        ZIO.logError(s"SAE-03 Can't get list of advices. [${ex.getLocalizedMessage}] [${ex.getMessage}] [${ex.getCause}]").as(0)
+    }
+
   override def save_fba_load: Task[Int] = for {
     pstmt <- prepStmtFbaLoad
     _ = pstmt.executeUpdate()
@@ -207,6 +265,7 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
                   longitude: Double,
                 ): Task[Int] = for {
     pstmt <- prepStmtGroup
+/*
     _ <- ZIO.logInfo(s" >>>>>>>>>>>>>>>>>  save_group chatId=$chatId")
     _ <- ZIO.logInfo(s" >>>>>>>>>>>>>>>>>  save_group firstName=$firstName")
     _ <- ZIO.logInfo(s" >>>>>>>>>>>>>>>>>  save_group lastName=$lastName")
@@ -214,7 +273,7 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
     _ <- ZIO.logInfo(s" >>>>>>>>>>>>>>>>>  save_group languageCode=$languageCode")
     _ <- ZIO.logInfo(s" >>>>>>>>>>>>>>>>>  save_group latitude=$latitude")
     _ <- ZIO.logInfo(s" >>>>>>>>>>>>>>>>>  save_group longitude=$longitude")
-
+*/
     res <- ZIO.succeed{
       pstmt.setLong(  1, chatId)
       pstmt.setString(2,firstName)

@@ -27,7 +27,14 @@ object MainApp extends ZIOAppDefault{
         "https://line06w.bk6bba-resources.com/line/desktop/topEvents3?place=live&sysId=1&lang=ru&salt=7u4qrf8pq08l5a08288&supertop=4&scopeMarket=1600"
 
       logicFb <- fbdown.getUrlContent(fbUrl).repeat(Schedule.spaced(60.seconds)).forkDaemon
+
+
+      // todo: may be combine in chain, if first save something then execute second effect
+      logSaveAdv <- fbdown.checkAdvice.repeat(Schedule.spaced(30.seconds)).forkDaemon
+
       _ <- logicFb.join
+      _ <- logSaveAdv.join
+
     } yield ()
 
   val log = LoggerFactory.getLogger(getClass.getName)
