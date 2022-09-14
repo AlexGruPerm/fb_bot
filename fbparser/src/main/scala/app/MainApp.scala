@@ -28,9 +28,11 @@ object MainApp extends ZIOAppDefault{
 
       logicFb <- fbdown.getUrlContent(fbUrl).repeat(Schedule.spaced(60.seconds)).forkDaemon
 
-
       // todo: may be combine in chain, if first save something then execute second effect
-      logSaveAdv <- fbdown.checkAdvice.repeat(Schedule.spaced(30.seconds)).forkDaemon
+      logSaveAdv <- fbdown.checkAdvice
+        .catchAllDefect{ex: Throwable =>
+          ZIO.logError(s"Fatal: fbdown.checkAdvice [${ex.getMessage}] [${ex.getCause}]")}
+        .repeat(Schedule.spaced(30.seconds)).forkDaemon
 
       _ <- logicFb.join
       _ <- logSaveAdv.join

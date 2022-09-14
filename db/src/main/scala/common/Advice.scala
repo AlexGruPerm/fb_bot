@@ -10,5 +10,6 @@ case class Advice(
                     team2coeff: Double,
                     team1score: String,
                     team2score: String,
-                    rest_mis: Int
+                    rest_mis: Int,
+                    curr_dt:String
                  )

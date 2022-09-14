@@ -157,7 +157,8 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
     (for {
       pgc <- connection
       pstmt = pgc.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
-      rs = pstmt.executeQuery("select a.id as advice_id, t.groupid, a.advice_text " +
+      rs = pstmt.executeQuery("select a.id as advice_id, t.groupid, " +
+                                   " replace(replace(a.advice_text,'XXX',a.id::text),'YYY',t.groupid::text) as advice_text" +
                                    " from   fba.tgroup t,       " +
                                    "        fba.advice a" +
                                    " where  t.is_blck_by_user_dt is null and " +
@@ -187,7 +188,7 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
       //_ <- ZIO.logInfo("Begin saveAdvices")
       pgc <- connection
       pstmt = pgc.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
-      rs = pstmt.executeQuery("select * from fba.v_football")
+      rs = pstmt.executeQuery("select ds.*,to_char(current_timestamp + make_interval(mins => 120),'dd.mm.yyyy HH24:MI:SS') as curr_dt from fba.v_football ds")
       listAdvice =
         Iterator.continually(rs).takeWhile(_.next()).map{
           rsi => Advice(
@@ -200,7 +201,8 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
             rsi.getDouble("team2coeff"),
             rsi.getString("team1score"),
             rsi.getString("team2score"),
-            rsi.getInt("rest_mis")
+            rsi.getInt("rest_mis"),
+            rsi.getString("curr_dt")
           )
           //columns.map(cname => rsi.getString(cname._1))
         }.toList
@@ -213,13 +215,14 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
           pstmt.setLong(1, adv.event_id)
           //"<b>Рекомендация № 1</b>"
           pstmt.setString(2,
-              s"<u>${adv.skname} (${adv.competitionname})</u>"+
-              s"До конца матча <b>${adv.rest_mis.toString}</b> минут."+
-              s"<pre>           ${adv.eventname}"+
-              s"  Коэфф.     ${adv.team1coeff.toString}  ${adv.draw_coeff.toString}  ${adv.team2coeff.toString}"+
-              s"  Счет          ${adv.team1score}  :    ${adv.team2score} </pre>"+
-              s"  <b>Совет</b> поставить на <b>${List(adv.team1coeff,adv.draw_coeff,adv.team2coeff).min.toString}</b>"+
-              s"(дата рекомендации 13.09.2022 01:51:12 Мск.)"
+            s"""<b>Рекомендация № XXX</b> Ваш ID = YYY
+               |<u>${adv.skname} (${adv.competitionname})</u>
+               |До конца матча <b>${adv.rest_mis.toString}</b> минут.
+               |<pre>         ${adv.eventname}
+               |  Коэфф.        ${adv.team1coeff.toString}  ${adv.draw_coeff.toString}  ${adv.team2coeff.toString}
+               |  Счет          ${adv.team1score}      :    ${adv.team2score}  </pre>
+               |<b>Совет</b> поставить на <b>${List(adv.team1coeff,adv.draw_coeff,adv.team2coeff).min.toString}</b>
+               |(дата рекомендации ${adv.curr_dt} Мск.)""".stripMargin
           )
           pstmt.executeUpdate()
         }.catchAll {

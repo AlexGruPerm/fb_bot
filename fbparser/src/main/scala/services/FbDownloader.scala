@@ -1,6 +1,6 @@
 package services
 
-import fb.LiveEventsResponse
+import fb.{LiveEvent, LiveEventsResponse}
 import io.circe.Json
 import sttp.capabilities.WebSockets
 import sttp.capabilities.zio.ZioStreams
@@ -22,6 +22,7 @@ import io.circe.generic.auto._
 import io.circe.optics.JsonPath
 import io.circe.syntax._
 import service.DbConnection
+import sttp.model.StatusCode
 
 import java.sql.Statement
 
@@ -43,24 +44,79 @@ import java.sql.Statement
  */
   //1. service interface - read Json string from given url.
   trait FbDownloader {
-    def getUrlContent(url: String): Task[LiveEventsResponse]
+    def getUrlContent(url: String): Task[Int]
     //Return Task[Count successful inserted advices]
     def checkAdvice: Task[Int]
   }
 
   //2. accessor method inside companion objects
   object FbDownloader {
-    def download(url: String): ZIO[FbDownloader, Throwable, LiveEventsResponse] =
+    def download(url: String): ZIO[FbDownloader, Throwable, Int] =
       ZIO.serviceWithZIO(_.getUrlContent(url))
   }
 
 
   //3. Service implementations (classes) should accept all dependencies in constructor
-  case class FbDownloaderImpl(console: Console, clock: Clock, client: SttpClient, conn: DbConnection) extends FbDownloader {
+  case class FbDownloaderImpl(console: Console, clock: Clock, client: SttpClient, conn: DbConnection)
+    extends FbDownloader {
 
     val _LiveEventsResponse = root.value.result.string
 
-    override def getUrlContent(url: String): Task[LiveEventsResponse] =
+    def saveEventsScores(evs: Seq[LiveEvent]) :Task[Unit] = for {
+      _ <- console.printLine(" ")
+      _ <- console.printLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+      _ <- console.printLine(s"   Events count = ${evs.size}")
+      _ <- console.printLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+      idFbaLoad <- conn.save_fba_load
+      _ <- ZIO.foreachDiscard(evs
+        .filter(ei => ei.markets.nonEmpty && ei.timer.nonEmpty && ei.markets.exists(mf => mf.ident == "Results"))){ev =>
+        conn.save_event(
+          idFbaLoad,
+          ev.id,
+          ev.number,
+          ev.competitionName,
+          ev.skId,
+          ev.skName,
+          ev.timerSeconds.getOrElse(0L),
+          ev.team1Id,
+          ev.team1,
+          ev.team2Id,
+          ev.team2,
+          ev.startTimeTimestamp,
+          ev.eventName
+        ).flatMap { idFbaEvent =>
+          //scores insert
+          ZIO.foreachDiscard(ev.markets.filter(mf => mf.ident == "Results" && mf.rows.nonEmpty && mf.rows.size >= 2)) {
+            m =>
+            (if (m.rows.nonEmpty &&
+              m.rows.size >= 2 &&
+              m.rows(0).cells.nonEmpty &&
+              m.rows(0).cells.size >= 4 &&
+              m.rows(1).cells.nonEmpty &&
+              m.rows(1).cells.size >= 4 //todo: add more filter.
+            ) {
+              val r0 = m.rows(0)
+              val r1 = m.rows(1)
+              conn.save_score(
+                idFbaEvent,
+                r0.cells(1).caption.getOrElse("*"),
+                r1.cells(1).value.getOrElse(0.0),
+                ev.scores(0).head.c1,
+                r0.cells(2).caption.getOrElse("*"),
+                r1.cells(2).value.getOrElse(0.0),
+                r1.cells(3).value.getOrElse(0.0),
+                r0.cells(3).caption.getOrElse("*"),
+                ev.scores(0).head.c2
+              ).as(ZIO.unit)
+            } else {
+              console.printLine("not interested!!!")
+            })
+          }
+        }
+      }
+    } yield ()
+
+    override def getUrlContent(url: String): Task[Int] =
       for {
         time <- clock.currentDateTime
         _ <- console.printLine(s"$time - $url")
@@ -70,92 +126,15 @@ import java.sql.Statement
         _ <- console.printLine(s" response statusText    = ${response.statusText}")
         _ <- console.printLine(s" response code          = ${response.code}")
 
-        _ <- console.printLine(" ")
-        _ <- console.printLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-        _ <- console.printLine(s"   Events count = ${response.body.right.get.events.size}")
-        _ <- console.printLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-        evs = response.body.right.get.events
-        evh = evs.head
+        _ <- saveEventsScores(response.body.right.get.events).when(response.code == StatusCode.Ok)
 
-        //pgc <- conn.connection
-        idFbaLoad <- conn.save_fba_load
+        _ <- ZIO.logError("getUrlContent CODE = 503, Service temporarily unavailable sleep 1 minute.")
+          .zip(ZIO.sleep(60.seconds))
+          .when(response.code == StatusCode.ServiceUnavailable)
 
-        _ <- ZIO.foreachDiscard(evs.filter(ei => ei.markets.nonEmpty && ei.timer.nonEmpty && ei.markets.exists(mf => mf.ident == "Results"))){ev =>
-          conn.save_event(
-            idFbaLoad,
-            ev.id,
-            ev.number,
-            ev.competitionName,
-            ev.skId,
-            ev.skName,
-            ev.timerSeconds.getOrElse(0L),
-            ev.team1Id,
-            ev.team1,
-            ev.team2Id,
-            ev.team2,
-            ev.startTimeTimestamp,
-            ev.eventName
-          ).flatMap { idFbaEvent =>
-            //scores insert
-            ZIO.foreachDiscard(ev.markets.filter(mf => mf.ident == "Results" && mf.rows.nonEmpty && mf.rows.size >= 2)) { m =>
-              (if (m.rows.nonEmpty &&
-                m.rows.size >= 2 &&
-                m.rows(0).cells.nonEmpty &&
-                m.rows(0).cells.size >= 4 &&
-                m.rows(1).cells.nonEmpty &&
-                m.rows(1).cells.size >= 4 //todo: add more filter.
-              ) {
-                val r0 = m.rows(0)
-                val r1 = m.rows(1)
+        _ <- ZIO.logError("getUrlContent CODE != 200 ").when(response.code != StatusCode.Ok)
 
-                conn.save_score(
-                  idFbaEvent,
-                  r0.cells(1).caption.getOrElse("*"),
-                  r1.cells(1).value.getOrElse(0.0),
-                  ev.scores(0).head.c1,
-                  r0.cells(2).caption.getOrElse("*"),
-                  r1.cells(2).value.getOrElse(0.0),
-                  r1.cells(3).value.getOrElse(0.0),
-                  r0.cells(3).caption.getOrElse("*"),
-                  ev.scores(0).head.c2
-                ).map(_ => ZIO.unit)
-
-              } else {
-                console.printLine("not interested!!!")
-              })
-            }
-          }
-
-        }
-
-        //full output one event
-        //Just for visual debug
-        /*
-        _ <- ZIO.foreach(evs.filter(ei => ei.markets.nonEmpty && ei.timer.nonEmpty && ei.markets.exists(mf => mf.ident == "Results"))){
-          e => console.printLine(s" ${e.id} - ${e.skName} -[ ${e.team1} - ${e.team2} ] - ${e.place} - ${e.timer}") *>
-            ZIO.foreach(e.markets.filter(mf => mf.ident == "Results" && mf.rows.nonEmpty && mf.rows.size >= 2)){
-              m => console.printLine(s"   ${m.marketId} - ${m.caption} - ${m.ident} - ${m.sortOrder} - rows [${m.rows.size}]") *>
-                //ZIO.foreach(m.rows) {r => console.printLine(s"  ROW isTitle = ${r.isTitle} - CELLS SIZE = ${r.cells.size}") *>
-                (if (m.rows.nonEmpty &&
-                  m.rows.size >= 2 &&
-                  m.rows(0).cells.nonEmpty &&
-                  m.rows(0).cells.size >= 4 &&
-                  m.rows(1).cells.nonEmpty &&
-                  m.rows(1).cells.size >= 4 //todo: add more filter.
-                    ) {
-                    val r0 = m.rows(0)
-                    val r1 = m.rows(1)
-                    console.printLine{s"${r0.cells(1).caption} - ${r1.cells(1).value} score (this team) : ${e.scores(0).head.c1}"} *>
-                      console.printLine(s"${r0.cells(2).caption} - ${r1.cells(2).value}") *>
-                      console.printLine(s"${r0.cells(3).caption} - ${r1.cells(3).value} score (this team) : ${e.scores(0).head.c1}")
-                } else {
-                  console.printLine("not interested!!!")
-                })
-                  }
-        }
-        _ <- console.printLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-        */
-        res <- ZIO.succeed(response.body.right.get)
+        res <- ZIO.succeed(1)
       } yield res
 
     //Return Task[Count successful inserted advices]
