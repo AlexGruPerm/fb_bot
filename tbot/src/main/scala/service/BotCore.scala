@@ -7,7 +7,7 @@ import com.bot4s.telegram.methods.{ApproveChatJoinRequest, DeclineChatJoinReques
 import com.bot4s.telegram.models.{InputFile, MenuButtonCommands, MenuButtonDefault, Message, Update}
 import com.bot4s.telegram.models.UpdateType.Filters.{InlineUpdates, MessageUpdates}
 import com.bot4s.telegram.models.UpdateType.UpdateType
-import common.{AdviceGroup, BotConfig, Group}
+import common.{AdviceGroup, BotConfig}
 import io.netty.handler.ssl.SslContextBuilder
 import org.asynchttpclient.Dsl.asyncHttpClient
 import sttp.client3.asynchttpclient.zio.AsyncHttpClientZioBackend
@@ -135,13 +135,19 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
 
 
   def send(advGrp: AdviceGroup): ZIO[Any,Throwable,Unit] =
-    for {/*
-      _ <- request(SetChatMenuButton(322134338,Some(MenuButtonCommands(`type` = "new")))) *>
-       ZIO.logInfo(s"......xxxxxxxxx.............${advGrp.groupId.toString}")
-      */
-       _ <- (request(SendMessage(advGrp.groupId, advGrp.adviceText, Some(ParseMode.HTML)))
+    for {
+/*       _ <- (
+       if (advGrp.is_active_user == 1) {
+         request(SendMessage(advGrp.groupId, advGrp.adviceText, Some(ParseMode.HTML)))
+       } else {
+         request(SendMessage(advGrp.groupId, advGrp.adviceTextInactive, Some(ParseMode.HTML)))
+       })*/
+
+      _ <- (request(SendMessage(advGrp.groupId, advGrp.adviceText, Some(ParseMode.HTML))).when(advGrp.is_active_user == 1) *>
+        request(SendMessage(advGrp.groupId, advGrp.adviceTextInactive, Some(ParseMode.HTML))).when(advGrp.is_active_user == 0)
+
         *> conn.saveSentGrp(advGrp).unit)
-        .catchAllDefect(ex => ZIO.logError(s"saveSentGrp Exception [${ex.getMessage}]") *>
+        .catchAllDefect(ex => ZIO.logError(s"saveSentGrp Exception [${ex.getLocalizedMessage}] [${ex.getMessage}]") *>
             conn.botBlockedByUser(advGrp.groupId).when(ex.getMessage == "Forbidden: bot was blocked by the user")
         ) //todo: addehere final saving sent_datetime into fba.advice
     } yield ()

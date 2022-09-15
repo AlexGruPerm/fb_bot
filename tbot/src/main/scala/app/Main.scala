@@ -1,7 +1,7 @@
 package app
 
 import com.typesafe.config.ConfigFactory
-import common.{AppConfig, BotConfig}
+import common.{AppConfig, ConfigHelper}
 import service.{FbBotZio, FbBotZioImpl, PgConnectionImpl}
 import zio.{ExitCode, URIO, ZIO, ZIOAppArgs, ZIOAppDefault, ZLayer}
 

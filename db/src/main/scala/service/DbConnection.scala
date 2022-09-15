@@ -1,6 +1,6 @@
 package service
 
-import common.{Advice, AdviceGroup, DbConfig, Group}
+import common.{Advice, AdviceGroup, DbConfig}
 import zio.{Task, ZIO, ZLayer}
 
 import java.sql.{Connection, DriverManager, ResultSet, Statement, Types}
@@ -37,13 +37,16 @@ trait DbConnection {
   val prepStmtEvents = for {
     pgc <- connection
     pstmt = pgc.prepareStatement(
-      s"insert into events(fba_load_id, event_id,event_number,competitionName,skid,skname,timerSeconds,team1Id,team1,team2Id,team2,startTimeTimestamp,eventName) values(?,?,?,?,?,?,?,?,?,?,?,?,?);"
+         " insert into events(fba_load_id, event_id,event_number,competitionName,skid,skname,timerSeconds,team1Id,team1,team2Id,team2,startTimeTimestamp,eventName)\n " +
+         " values(?,?,?,?,?,?,?,?,?,?,?,?,?)\n " +
+         " ON CONFLICT ON CONSTRAINT uk_event_event_id_ts DO NOTHING RETURNING id;"
       ,Statement.RETURN_GENERATED_KEYS)
   } yield pstmt
 
   val prepStmtScore = for {
     pgc <- connection
-    pstmt = pgc.prepareStatement(s"insert into score(events_id,team1,team1Coeff,team1score,draw,draw_coeff,team2Coeff,team2,team2score) values(?,?,?,?,?,?,?,?,?);")
+    pstmt = pgc.prepareStatement(s"insert into score(events_id,team1,team1Coeff,team1score,draw,draw_coeff,team2Coeff,team2,team2score) values(?,?,?,?,?,?,?,?,?)\n "+
+    " ON CONFLICT ON CONSTRAINT uk_score_events_id DO NOTHING;")
   } yield pstmt
 
   val prepStmtGroup = for {
@@ -56,12 +59,12 @@ trait DbConnection {
 
   val prepStmtSaveSentGrp = for {
     pgc <- connection
-    pstmt = pgc.prepareStatement("insert into fba.advice_sent(advice_id,groupid) values(?,?);")
+    pstmt = pgc.prepareStatement("insert into fba.advice_sent(advice_id,groupid,user_was_active) values(?,?,?);")
   } yield pstmt
 
   val prepStmtSaveAdvice = for {
     pgc <- connection
-    pstmt = pgc.prepareStatement("insert into fba.advice(event_id,advice_text) values(?,?);")
+    pstmt = pgc.prepareStatement("insert into fba.advice(event_id,advice_text,advice_koef, advice_rest_mis) values(?,?,?,?);")
   } yield pstmt
 
   def getAdvicesGroups: ZIO[Any,Nothing,List[AdviceGroup]]
@@ -121,13 +124,16 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
       val props = new Properties()
       props.setProperty("user", conf.username)
       props.setProperty("password", conf.password)
-      val c: Connection = DriverManager.getConnection(conf.url, props)
-      c.setClientInfo("ApplicationName", s"fb_adviser")
-      val stmt: Statement = c.createStatement
+      val conn: Connection = DriverManager.getConnection(conf.url, props)
+      conn.setClientInfo("ApplicationName", s"fb_adviser")
+      val stmt: Statement = conn.createStatement
       val rs: ResultSet = stmt.executeQuery("SELECT pg_backend_pid() as pg_backend_pid")
       rs.next()
       val pg_backend_pid: Int = rs.getInt("pg_backend_pid")
-      c
+      val stmtSet = conn.prepareStatement("SET lc_messages TO 'en_US.UTF-8';")
+      stmtSet.execute()
+      //stmt.executeQuery("SET lc_messages TO 'en_US.UTF-8';")
+      conn
     }
   }
 
@@ -158,20 +164,25 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
       pgc <- connection
       pstmt = pgc.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
       rs = pstmt.executeQuery("select a.id as advice_id, t.groupid, " +
-                                   " replace(replace(a.advice_text,'XXX',a.id::text),'YYY',t.groupid::text) as advice_text" +
+                                   " replace(replace(a.advice_text,'XXX',a.id::text),'YYY',t.groupid::text) as advice_text," +
+                                   " (case when current_timestamp between t.ins_datetime and t.active_to then 1 else 0 end) as is_active_user" +
                                    " from   fba.tgroup t,       " +
                                    "        fba.advice a" +
                                    " where  t.is_blck_by_user_dt is null and " +
                                    "        a.sent_datetime is null and      " +
-                                   "        (a.id,t.groupid) not in ( " +
-                                   "                                  select ast.advice_id,ast.groupid " +
+                                   "        (a.id,t.groupid) not in ( select ast.advice_id, ast.groupid " +
                                    "                                    from fba.advice_sent ast  )")
       results =
         Iterator.continually(rs).takeWhile(_.next()).map{
           rsi => AdviceGroup(
             rsi.getLong("advice_id"),
             rsi.getLong("groupid"),
-            rsi.getString("advice_text")
+            rsi.getString("advice_text"),
+            rsi.getInt("is_active_user"),
+            s"""<b>Рекомендация № ${rsi.getLong("advice_id")}</b> Ваш ID = ${rsi.getLong("groupid")}
+               |Ваш ID сейчас не активен. Возможно закончился бесплатный период. Оплатите следующий месяц с текущей даты.
+               |Оплатить можно по QR коду или перводом на карту, укажите свой ID в комментарии к переводу.
+               |Обратитесь на fb_advicer@gmail.com укажите ваш ID. """.stripMargin
           )
           //columns.map(cname => rsi.getString(cname._1))
         }.toList
@@ -208,14 +219,14 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
         }.toList
       _ <- ZIO.logInfo(s"There are [${listAdvice.size}] rows in saveAdvices.").when(listAdvice.nonEmpty)
       //todo: here plase to insert advice into fba.advice
-
+      //todo: Save all parts in individual fields and build advice text when sending. Don't save whole advice text.
       pstmt <- prepStmtSaveAdvice
       _ <- ZIO.foreachDiscard(listAdvice){
         adv => ZIO.attempt{
           pstmt.setLong(1, adv.event_id)
           //"<b>Рекомендация № 1</b>"
           pstmt.setString(2,
-            s"""<b>Рекомендация № XXX</b> Ваш ID = YYY
+            s"""<b>Рекомендация № XXX</b>                  Ваш ID =  YYY
                |<u>${adv.skname} (${adv.competitionname})</u>
                |До конца матча <b>${adv.rest_mis.toString}</b> минут.
                |<pre>         ${adv.eventname}
@@ -224,6 +235,8 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
                |<b>Совет</b> поставить на <b>${List(adv.team1coeff,adv.draw_coeff,adv.team2coeff).min.toString}</b>
                |(дата рекомендации ${adv.curr_dt} Мск.)""".stripMargin
           )
+          pstmt.setDouble(3,List(adv.team1coeff,adv.draw_coeff,adv.team2coeff).min)
+          pstmt.setInt(4,adv.rest_mis)
           pstmt.executeUpdate()
         }.catchAll {
           ex: Throwable =>
@@ -252,6 +265,7 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
     res <- ZIO.succeed{
       pstmt.setLong(1, advGrp.adviceId)
       pstmt.setLong(2, advGrp.groupId)
+      pstmt.setLong(3,advGrp.is_active_user)
       pstmt.executeUpdate()
     }
     _ = pstmt.close()
@@ -293,6 +307,8 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
     _ <- ZIO.logInfo(s"<<<<<<<<<<<<<<<<< save_group result res = $res")
   } yield res
 
+  //todo: make Uk constraint on event_id + timerseconds for eliminating noise data (when game break)
+  //      in save_event insert on conflict do nothing.
   def save_event(
                   idFbaLoad: Long,
                   id: Long,
@@ -325,9 +341,18 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
       pstmt.setString(13, eventName)
     }
      resInsertEvent = pstmt.executeUpdate()
+     //_ <- ZIO.logInfo(s" >>>>>>>>>>>>>>>>>>>>>>>> save_event inserted rows = ${resInsertEvent}").when(id==36089115L)
      keysetEvnts = pstmt.getGeneratedKeys
-     _ = keysetEvnts.next()
+    /*
+    _ = keysetEvnts.next()
      idFbaEvent :Int  = keysetEvnts.getInt(1)
+    */
+    idFbaEvent :Int  = if (keysetEvnts.next()){
+      keysetEvnts.getInt(1)
+    } else {
+      0
+    }
+
     _ = pstmt.close()
     _ = pstmt.getConnection.close()
   } yield idFbaEvent

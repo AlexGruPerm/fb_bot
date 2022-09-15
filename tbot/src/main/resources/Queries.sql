@@ -15,7 +15,7 @@ delete from fba_load;
 
 select * from fba_load;
 
-select sum(1) from events e;  -- 2581
+select sum(1) from events e;  -- 3883
 
 select e.fba_load_id ,sum(1) as cnt 
 from events e
@@ -38,7 +38,7 @@ select current_timestamp + make_interval(mins => -5) ,  current_timestamp;
 
 -- ТОЛЬКО ФУТБОЛ
 -- 1. В первом запросе отбираем только нужные события по типу, фильтрам.
-select distinct e.event_id--,e.competitionname ,e.team1 ,e.team2 , e.timerseconds/60 as mins
+select e.*--distinct e.event_id--,e.competitionname ,e.team1 ,e.team2 , e.timerseconds/60 as mins
 from   events e 
 left join score s on e.id = s.events_id
 where
@@ -57,6 +57,9 @@ where
     where  ei.event_id = e.event_id and 
            ei.timerseconds/60 >= 90    
    );
+  
+  
+
 
 
 --delete from fba.events; 
@@ -164,9 +167,8 @@ order by competitionname,eventname, ins_datetime desc;
 
  
   -- Итоговый запрос на рекомендации. 
-  create or replace view v_football as
-  select ds.*
-   from(
+
+ 
 		select 
 		       e.event_id,   
 		       e.skname,
@@ -196,36 +198,9 @@ order by competitionname,eventname, ins_datetime desc;
 		left join score s on e.id = s.events_id
 		where -- ещё не сформирован совет
 		      e.event_id not in (select a.event_id from fba.advice a) and
-		      e.event_id in (
-						      -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-								select distinct ei.event_id--,e.competitionname ,e.team1 ,e.team2 , e.timerseconds/60 as mins
-								from   events ei 
-								left join score s on ei.id = s.events_id
-								where
-								  ei.skid = 1 and -- только футбол
-								  (s.team1coeff is not null or s.team2coeff is not null) and
-								   -- события сохранены в течение последних 5-ти загрузок (нет старых)
-								    ei.fba_load_id in (
-								     select fl.id 
-								     from   fba_load fl 
-								     where  fl.ins_datetime between current_timestamp + make_interval(mins => -5) and  current_timestamp
-								    ) and
-								   -- игра ещё не закончилась
-								    not exists( 
-								    select 1
-								    from   events eii
-								    where  eii.event_id = ei.event_id and 
-								           eii.timerseconds/60 >= 90    
-								   ) and
-								   -- уже прошло 60 минут
-                                   ei.timerseconds/60 >= 50
-						      -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-						    ) and
+		      e.event_id =36089115 and
 		     (s.team1coeff is not null or s.team2coeff is not null) 	     
-   ) ds 
-   where ds.rn = 1 and 
-         ds.is_time = 1
-   order by rest_mis asc;
+   
 
   
   select * from fba.v_football;

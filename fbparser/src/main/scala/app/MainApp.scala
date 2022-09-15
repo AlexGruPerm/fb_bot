@@ -1,7 +1,7 @@
 package app
 
 import com.typesafe.config.{Config, ConfigFactory}
-import common.{AppConfig, DbConfig}
+import common.{AppConfig, ConfigHelper}
 import org.slf4j.LoggerFactory
 import service.{DbConnection, PgConnectionImpl}
 import services.{FbDownloader, FbDownloaderImpl}
@@ -19,14 +19,21 @@ object MainApp extends ZIOAppDefault{
     for {
       //console <- ZIO.console
       fbdown <- ZIO.service[FbDownloader]
-      fbUrl =         //"https://line05w.bk6bba-resources.com/line/desktop/topEvents3?place=live&sysId=1&lang=ru&salt=33kcb6w4ydl56iud3p&supertop=4&scopeMarket=1600"
-        //"https://line06w.bk6bba-resources.com/line/desktop/topEvents3?place=live&sysId=1&lang=ru&salt=1jy2797i10bl58mhxjm&supertop=4&scopeMarket=1600"
-        //todo: here we need new parser with new c.c.
-        //"https://line53w.bk6bba-resources.com/events/list?lang=ru&version=8639286626&scopeMarket=1600"
-        //"https://line32w.bk6bba-resources.com/line/desktop/topEvents3?place=live&sysId=1&lang=ru&salt=10i7oc9ftkdl59yfmc1&supertop=4&scopeMarket=1600"
-        "https://line06w.bk6bba-resources.com/line/desktop/topEvents3?place=live&sysId=1&lang=ru&salt=7u4qrf8pq08l5a08288&supertop=4&scopeMarket=1600"
+      fbUrl = "https://line06w.bk6bba-resources.com/line/desktop/topEvents3?place=live&sysId=1&lang=ru&salt=7u4qrf8pq08l5a08288&supertop=4&scopeMarket=1600"
 
-      logicFb <- fbdown.getUrlContent(fbUrl).repeat(Schedule.spaced(60.seconds)).forkDaemon
+      //logicFb <- fbdown.getUrlContent(fbUrl).repeat(Schedule.spaced(60.seconds)).forkDaemon
+
+      logicFb <- fbdown.getUrlContent(fbUrl)
+        .catchAll{
+          ex: Throwable => ZIO.logError(s"Exception catchAll fbdown.getUrlContent ${ex.getMessage} - ${ex.getCause}")}
+        .repeat(Schedule.spaced(60.seconds))
+        .forkDaemon
+
+      /*
+        .catchAllDefect{
+       ex: Throwable => ZIO.logError(s"Exception catchAllDefect fbdown.getUrlContent ${ex.getMessage} - ${ex.getCause}")
+      }
+      */
 
       // todo: may be combine in chain, if first save something then execute second effect
       logSaveAdv <- fbdown.checkAdvice

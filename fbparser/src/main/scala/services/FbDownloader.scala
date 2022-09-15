@@ -50,9 +50,11 @@ import java.sql.Statement
   }
 
   //2. accessor method inside companion objects
-  object FbDownloader {
-    def download(url: String): ZIO[FbDownloader, Throwable, Int] =
+  object FbDownloader {/*
+    def download(url: String): ZIO[FbDownloader, Throwable, Int] = {
       ZIO.serviceWithZIO(_.getUrlContent(url))
+      }
+      */
   }
 
 
@@ -111,8 +113,9 @@ import java.sql.Statement
             } else {
               console.printLine("not interested!!!")
             })
-          }
-        }
+          }.when(idFbaEvent!=0)
+            .catchAllDefect{ex: Throwable => ZIO.logError(s"Exception save SCORE ${ex.getMessage} - ${ex.getCause}")}
+        }.catchAllDefect{ex: Throwable => ZIO.logError(s"Exception save EVENT event_id = [${ev.id}] - ${ex.getMessage} - ${ex.getCause}")}
       }
     } yield ()
 

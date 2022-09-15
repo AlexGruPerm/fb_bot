@@ -6,9 +6,10 @@ ThisBuild / scalaVersion := "2.12.15"
 
 /**
 * projects:
-*   fbparser - parser of fonbet data, save into db using pgdb
-*   tbot     - telegram bot that send recomendations to users about ...
-*   pgdb     - common library for work with postgres db
+*   fbparser - parser of fonbet data, save into db using db, transitive depends on common through db
+*   tbot     - telegram bot that send recomendations to users, transitive depends on common through db
+*   db        - library for work with postgres db, depends on common
+*   common   - common case classes and code
 */
 lazy val global = project
   .in(file("."))
@@ -19,12 +20,20 @@ lazy val global = project
     tbot
   )
 
+lazy val common = (project in file("common"))
+  .settings(
+    name := "common",
+    commonSettings,
+    libraryDependencies ++= dependenciesCommon.tsConfig
+  )
+
 lazy val db = (project in file("db"))
   .settings(
     name := "db",
     commonSettings,
     libraryDependencies ++= dependenciesPg.deps
   )
+  .dependsOn(common)
 
 lazy val tbot = (project in file("tbot"))
   .settings(
@@ -44,6 +53,13 @@ lazy val fbparser = (project in file("fbparser"))
   )
  .dependsOn(db)
 
+//********************************************************************************
+// Dependencies for project common.
+
+lazy val dependenciesCommon =
+  new {
+    val tsConfig = List("com.typesafe" % "config" % "1.4.2")
+  }
 
 
 //********************************************************************************
@@ -84,7 +100,7 @@ lazy val dependenciesFbParser =
     val zio_sttp_async = "com.softwaremill.sttp.client3" %% "async-http-client-backend-zio" % VersFbp.zioSttp
     val zio_sttp_circe = "com.softwaremill.sttp.client3" %% "circe" % VersFbp.zioSttp
 
-    val tsConfig = List("com.typesafe" % "config" % "1.4.2")
+    //val tsConfig = List("com.typesafe" % "config" % "1.4.2")
 
     val zioDep = List(zio, zio_logging, zio_sttp, zio_sttp_async, zio_sttp_circe)
 
@@ -100,7 +116,7 @@ lazy val dependenciesFbParser =
     val logback = "ch.qos.logback" % "logback-classic" % VersFbp.logbackvers
 
     val deps = zioDep ++
-      tsConfig ++
+      //tsConfig ++
       circe_libs ++
       List(logback/*,slf4j*/)
   }
