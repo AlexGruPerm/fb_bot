@@ -3,7 +3,7 @@ package service
 import common.{Advice, AdviceGroup, DbConfig}
 import zio.{Task, ZIO, ZLayer}
 
-import java.sql.{Connection, DriverManager, ResultSet, Statement, Types}
+import java.sql.{Connection, DriverManager, ResultSet, SQLException, Statement, Types}
 import java.util.Properties
 
 /**
@@ -64,10 +64,33 @@ trait DbConnection {
 
   val prepStmtSaveAdvice = for {
     pgc <- connection
-    pstmt = pgc.prepareStatement("insert into fba.advice(event_id,advice_text,advice_koef, advice_rest_mis) values(?,?,?,?);")
+    //pstmt = pgc.prepareStatement("insert into fba.advice(event_id,advice_text,advice_koef, advice_rest_mis) values(?,?,?,?);")
+    pstmt = pgc.prepareStatement("insert into fba.advice(event_id, \n    " +
+                                                            " team1coeff,\n    " +
+                                                            " draw_coeff,\n    " +
+                                                            " team2coeff,\n    " +
+                                                            " team1score,\n    " +
+                                                            " team2score,\n     " +
+                                                            " advice_coeff,\n   " +
+                                                            " advice_rest_mis,\n" +
+                                                            " advice_type)\n    " +
+                                                 " select  ad.event_id,\n       " +
+                                                         " ad.team1coeff,\n     " +
+                                                        " ad.draw_coeff,\n " +
+                                                        " ad.team2coeff,\n " +
+                                                        " ad.team1score,\n " +
+                                                        " ad.team2score,\n " +
+                                                        " least(team1coeff,team2coeff,draw_coeff) as advice_coeff,\n  " +
+                                                        " ad.rest_mis,\n   " +
+                                                        " (case\n          " +
+                                                        "   when least(team1coeff,team2coeff,draw_coeff) = team1coeff then 'team1'::text\n " +
+                                                        "   when least(team1coeff,team2coeff,draw_coeff) = team2coeff then 'team2'::text\n " +
+                                                        "   when least(team1coeff,team2coeff,draw_coeff) = draw_coeff then 'draw'::text\n  " +
+                                                        "   else 'unknown'::text  end) as advice_type\n " +
+        " from  fba.v_advices ad ON CONFLICT ON CONSTRAINT uk_advice_event_id DO NOTHING RETURNING id;",Statement.RETURN_GENERATED_KEYS)
   } yield pstmt
 
-  def getAdvicesGroups: ZIO[Any,Nothing,List[AdviceGroup]]
+  def getAdvicesGroups: ZIO[Any,Throwable,List[AdviceGroup]]
 
   def botBlockedByUser(groupid: Long): Task[Int]
 
@@ -132,7 +155,6 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
       val pg_backend_pid: Int = rs.getInt("pg_backend_pid")
       val stmtSet = conn.prepareStatement("SET lc_messages TO 'en_US.UTF-8';")
       stmtSet.execute()
-      //stmt.executeQuery("SET lc_messages TO 'en_US.UTF-8';")
       conn
     }
   }
@@ -159,42 +181,68 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
     _ = pstmt.getConnection.close()
   } yield resUpdate
 
-  def getAdvicesGroups: ZIO[Any,Nothing,List[AdviceGroup]] =
-    (for {
+  def getAdvicesGroups: ZIO[Any,Throwable,List[AdviceGroup]] =
+    (
+      for {
+      _ <- ZIO.logInfo("getAdvicesGroups [DB] ")
       pgc <- connection
       pstmt = pgc.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
-      rs = pstmt.executeQuery("select a.id as advice_id, t.groupid, " +
-                                   " replace(replace(a.advice_text,'XXX',a.id::text),'YYY',t.groupid::text) as advice_text," +
-                                   " (case when current_timestamp between t.ins_datetime and t.active_to then 1 else 0 end) as is_active_user" +
-                                   " from   fba.tgroup t,       " +
-                                   "        fba.advice a" +
-                                   " where  t.is_blck_by_user_dt is null and " +
-                                   "        a.sent_datetime is null and      " +
-                                   "        (a.id,t.groupid) not in ( select ast.advice_id, ast.groupid " +
-                                   "                                    from fba.advice_sent ast  )")
+      //todo: rewrite query, it's nonoptimal, special e.id in (select max(ei.id) ....
+      rs = pstmt.executeQuery("select * from fba.v_advice_group ")
       results =
         Iterator.continually(rs).takeWhile(_.next()).map{
           rsi => AdviceGroup(
-            rsi.getLong("advice_id"),
+            rsi.getLong("adviceId"),//adviceId
+            rsi.getLong("event_id"),
+            rsi.getString("skname"),
+            rsi.getString("competitionname"),
+            rsi.getDouble("team1coeff"),
+            rsi.getString("team1"),
+            rsi.getDouble("draw_coeff"),
+            rsi.getDouble("team2coeff"),
+            rsi.getString("team2"),
+            rsi.getString("team1score"),
+            rsi.getString("team2score"),
+            rsi.getString("ins_datetime"),
+            rsi.getString("advice_coeff"),
+            rsi.getInt("advice_rest_mis"),
+            rsi.getString("advice_type"),
             rsi.getLong("groupid"),
-            rsi.getString("advice_text"),
-            rsi.getInt("is_active_user"),
-            s"""<b>Рекомендация № ${rsi.getLong("advice_id")}</b> Ваш ID = ${rsi.getLong("groupid")}
-               |Ваш ID сейчас не активен. Возможно закончился бесплатный период. Оплатите следующий месяц с текущей даты.
-               |Оплатить можно по QR коду или перводом на карту, укажите свой ID в комментарии к переводу.
-               |Обратитесь на fb_advicer@gmail.com укажите ваш ID. """.stripMargin
+            rsi.getInt("is_active_user")
           )
-          //columns.map(cname => rsi.getString(cname._1))
         }.toList
       _ <- ZIO.logInfo(s"There are ${results.size} advice-group(s) to send.")
       _ = pstmt.close()
       _ = pstmt.getConnection.close()
-    } yield results).catchAll {
-       ex: Throwable =>
-        ZIO.logError(s"FBAE-03 Can't get active groups. [${ex.getLocalizedMessage}] [${ex.getMessage}] [${ex.getCause}]").as(List.empty[AdviceGroup])
+    } yield results
+      ).catchSome{
+      case ex: SQLException =>
+        ZIO.logError(s"getAdvicesGroups SQLException [${ex.getLocalizedMessage}] [${ex.getMessage}] [${ex.getCause}]").as(List.empty[AdviceGroup])
+      case ext: Throwable =>
+        ZIO.logError(s"getAdvicesGroups Throwable [${ext.getLocalizedMessage}] [${ext.getMessage}] [${ext.getCause}]").as(List.empty[AdviceGroup])
     }
+      /*).catchAll {
+       ex: Throwable =>
+        ZIO.logError(s"getAdvicesGroups [DB] Throwable [${ex.getLocalizedMessage}] [${ex.getMessage}] [${ex.getCause}]").as(List.empty[AdviceGroup])
+    }.catchAllDefect(ex => ZIO.logError(s"getAdvicesGroups [DB] Throwable Defect [${ex.getLocalizedMessage}] [${ex.getMessage}]")).as(List.empty[AdviceGroup])
+    */
+
 
   def saveAdvices: Task[Int] =
+    for {
+      _ <- ZIO.logInfo("Begin saveAdvices")
+      pstmt <- prepStmtSaveAdvice //prepStmtSaveSentGrp
+      res <- ZIO.attempt{pstmt.executeUpdate()}
+        .catchAll {
+          case sqlex: SQLException => ZIO.logError(s"SQLException Exception saveAdvices - [${sqlex.getMessage}] [${sqlex.getCause}]").as(0)
+          case ex: Throwable =>
+          ZIO.logError(s"Throwable Exception saveAdvices - [${ex.getMessage}] [${ex.getCause}]").as(0)
+      }
+      _ = pstmt.close()
+      _ = pstmt.getConnection.close()
+    } yield res
+  /*
+  def saveAdvices: Task[Int] = {
     (for {
       //_ <- ZIO.logInfo("Begin saveAdvices")
       pgc <- connection
@@ -249,6 +297,8 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
       ex: Throwable =>
         ZIO.logError(s"SAE-03 Can't get list of advices. [${ex.getLocalizedMessage}] [${ex.getMessage}] [${ex.getCause}]").as(0)
     }
+    */
+
 
   override def save_fba_load: Task[Int] = for {
     pstmt <- prepStmtFbaLoad
@@ -264,7 +314,7 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
     pstmt <- prepStmtSaveSentGrp
     res <- ZIO.succeed{
       pstmt.setLong(1, advGrp.adviceId)
-      pstmt.setLong(2, advGrp.groupId)
+      pstmt.setLong(2, advGrp.groupid)
       pstmt.setLong(3,advGrp.is_active_user)
       pstmt.executeUpdate()
     }

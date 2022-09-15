@@ -164,11 +164,22 @@ order by competitionname,eventname, ins_datetime desc;
 
 --=================================================================================================================================================
 
+select * from events e where e.event_id = 36089115 order by e.ins_datetime desc;
 
+
+
+alter table events add constraint uk_event_event_id_ts unique(event_id,timerseconds);
+
+select * from score s where s.events_id = 42243;
+
+alter table score add constraint uk_score_events_id unique(events_id);
  
   -- Итоговый запрос на рекомендации. 
 
- 
+delete from events e where e.event_id != 36089115;
+
+
+ -- История отдельного матча
 		select 
 		       e.event_id,   
 		       e.skname,
@@ -191,49 +202,16 @@ order by competitionname,eventname, ins_datetime desc;
 		         then 1
 		         else null::integer
 		        end) as is_time,
+		        e.timerseconds,
 		        90 - e.timerseconds/60 as rest_mis,
 		        row_number() over(partition by e.event_id order by e.timerseconds/60 desc) as rn
 		 --e.*,s.* 
 		from events e 
 		left join score s on e.id = s.events_id
 		where -- ещё не сформирован совет
-		      e.event_id not in (select a.event_id from fba.advice a) and
 		      e.event_id =36089115 and
 		     (s.team1coeff is not null or s.team2coeff is not null) 	     
+		order by e.timerseconds desc
    
 
   
-  select * from fba.v_football;
-  
-insert into fba.advice(event_id,advice_text) values(28532, 
-'<b>Рекомендация № 1</b> 
-<u>Футбол (Италия. Серия А)</u> 
-До конца матча <b>7</b> минут.
-<pre>           Эмполи  -    Рома
-  Коэфф.     1.35  9.0  12.0
-  Счет          3  :    0 </pre>
-<b>Совет</b> поставить на <b>1.35</b>
-(дата рекомендации 13.09.2022 01:51:12 Мск.)
-');
-
-'<b>Рекомендация № fba.advice.id</b>
-<u>skname (competitionname)</u>
-До конца матча <b>rest_mis</b> минут.
-<pre>eventname
-     Коэфф.    team1coeff  draw_coeff  team2coeff
-     Счет      team1score   :   team2score </pre>
-<b>Совет</b> поставить на <b>min(team1coeff,draw_coeff,team2coeff)</b>
-(дата рекомендации 13.09.2022 01:51:12 Мск.)'
-
-
-                    event_id: Long,
-                    skname: String,
-                    competitionname: String,
-                    eventname: String,
-                    team1coeff: Double,
-                    draw_coeff: Double,
-                    team2coeff: Double,
-                    team1score: String,
-                    team2score: String,
-                    rest_mis: Int
-

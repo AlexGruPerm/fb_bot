@@ -29,7 +29,9 @@ import javax.net.ssl.{KeyManagerFactory, TrustManagerFactory}
 import java.time.Duration
 import java.nio.file.Files
 import java.nio.file.Paths
+import java.text.SimpleDateFormat
 import java.time.Duration
+import java.util.{Calendar, Date}
 import scala.concurrent.Future
 
 abstract class FbBot(val conf: BotConfig)
@@ -133,23 +135,51 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
 
     } yield ()
 
+  def currentMoscowDateTime: ZIO[Any,Throwable,String] = for {
+    currentDateTime <- ZIO.attempt{
+      val cal: Calendar = Calendar.getInstance()
+      cal.setTime(new Date())
+      cal.add(Calendar.HOUR_OF_DAY, -2)
+      val dtm: java.util.Date = cal.getTime()
+      (new SimpleDateFormat("dd.MM.yyyy HH:mm:ss")).format(dtm)
+    }
+  } yield currentDateTime
 
-  def send(advGrp: AdviceGroup): ZIO[Any,Throwable,Unit] =
+  def send(adv: AdviceGroup): ZIO[Any,Throwable,Unit] =
     for {
-/*       _ <- (
-       if (advGrp.is_active_user == 1) {
-         request(SendMessage(advGrp.groupId, advGrp.adviceText, Some(ParseMode.HTML)))
-       } else {
-         request(SendMessage(advGrp.groupId, advGrp.adviceTextInactive, Some(ParseMode.HTML)))
-       })*/
+      curr_dt <- currentMoscowDateTime
+      _ <- ZIO.logInfo(s"BOT send method. Current datetime = $curr_dt")
+      msg <- ZIO.attempt{
+               if (adv.is_active_user == 1) {
+                 s"""<b>Рекомендация № ${adv.adviceId}</b>                  Ваш ID =  ${adv.groupid}
+                    |<u>${adv.skname} (${adv.competitionname})</u>
+                    |До конца матча <b>${adv.advice_rest_mis}</b> минут.
+                    |<pre>         ${adv.team1} - ${adv.team2}
+                    |  Коэфф.        ${adv.team1coeff.toString}  ${adv.draw_coeff.toString}  ${adv.team2coeff.toString}
+                    |  Счет          ${adv.team1score}      :    ${adv.team2score}  </pre>
+                    |<b>Совет</b> поставить на  <b>${adv.advice_coeff}</b>    (${adv.adviceTypeTxt})
+                    |
+                    |(дата рекомендации в системе ${adv.ins_datetime} Мск.)
+                    |(дата отправки сообщения $curr_dt)""".stripMargin
+               } else {
+                 s"""<b>Рекомендация № ${adv.adviceId}</b> Ваш ID = ${adv.groupid}
+                    |Ваш ID сейчас не активен. Возможно закончился бесплатный период. Оплатите следующий месяц с текущей даты.
+                    |Оплатить можно по QR коду или перводом на карту, укажите свой ID в комментарии к переводу.
+                    |Обратитесь на fb_advicer@gmail.com укажите ваш ID. """.stripMargin
+               }
+         }
 
-      _ <- (request(SendMessage(advGrp.groupId, advGrp.adviceText, Some(ParseMode.HTML))).when(advGrp.is_active_user == 1) *>
-        request(SendMessage(advGrp.groupId, advGrp.adviceTextInactive, Some(ParseMode.HTML))).when(advGrp.is_active_user == 0)
+      _ <- (request(SendMessage(adv.groupid, msg, Some(ParseMode.HTML))).when(adv.is_active_user == 1) *>
+        request(SendMessage(adv.groupid, msg, Some(ParseMode.HTML))).when(adv.is_active_user == 0)
+        *> conn.saveSentGrp(adv).unit).
+        catchAll{ex : Throwable => ZIO.logError(s"BOT send Throwable [${ex.getLocalizedMessage}] [${ex.getMessage}]") *>
+          conn.botBlockedByUser(adv.groupid).when(ex.getMessage == "Forbidden: bot was blocked by the user")
+        }
+        .catchAllDefect(ex => ZIO.logError(s"BOT send Defect [${ex.getLocalizedMessage}] [${ex.getMessage}]") *>
+            conn.botBlockedByUser(adv.groupid).when(ex.getMessage == "Forbidden: bot was blocked by the user")
+        )
 
-        *> conn.saveSentGrp(advGrp).unit)
-        .catchAllDefect(ex => ZIO.logError(s"saveSentGrp Exception [${ex.getLocalizedMessage}] [${ex.getMessage}]") *>
-            conn.botBlockedByUser(advGrp.groupId).when(ex.getMessage == "Forbidden: bot was blocked by the user")
-        ) //todo: addehere final saving sent_datetime into fba.advice
+      //todo: addehere final saving sent_datetime into fba.advice
     } yield ()
 /*
       _ <- (request(SendMessage(advGrp.groupId, advGrp.adviceText, Some(ParseMode.HTML)))
@@ -163,11 +193,14 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
 
    def sendAdvices: ZIO[Any,Throwable,Unit] =
      for {
+       //_ <- ZIO.logInfo("Begin sendAdvices")
        advGrp <- conn.getAdvicesGroups
-       //_ <- ZIO.logInfo(s"sendMessageToGroups listGroups.size = ${advGrp.size}")
+       //_ <- ZIO.logInfo(s"BOT sendAdvices listGroups.size = ${advGrp.size}").when(advGrp.nonEmpty)
+       //_ <- ZIO.logInfo(s"BOT sendAdvices Empty List = ${advGrp.size}").when(advGrp.isEmpty)
        _ <- ZIO.foreach(advGrp){thisRow => send(thisRow)}
          .catchAll {
-         case tex: TelegramApiException => ZIO.logError(s"Exception: ${tex.message} - ${tex.cause}")
+         case tex: TelegramApiException => ZIO.logError(s"sendAdvices TelegramApiException: ${tex.message} - ${tex.cause}")
+         case ex: Throwable => ZIO.logError(s"sendAdvices Throwable: ${ex.getMessage} - ${ex.getCause}")
        }
      } yield ()
 
