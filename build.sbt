@@ -14,8 +14,10 @@ ThisBuild / scalaVersion := "2.12.15"
 lazy val global = project
   .in(file("."))
   .settings(commonSettings)
-  .disablePlugins(AssemblyPlugin)
+  //.disablePlugins(AssemblyPlugin)
   .aggregate(
+    common,
+    db,
     fbparser,
     tbot
   )
@@ -88,21 +90,25 @@ val VersFbp = new {
   val Circe = "0.14.2"
   val circeOptics = "0.14.1"
   val slf4jvers = "2.0.0"
-  val logbackvers = "1.4.0"//"1.2.3"
+  val logbackvers = "1.2.3"
+  val zioLogSlf4j = "0.4.0"
 }
 
 lazy val dependenciesFbParser =
   new {
+    // https://mvnrepository.com/artifact/org.slf4j/slf4j-api
+    //val slf4j = "org.slf4j" % "slf4j-api" % VersFbp.slf4jvers
+    val logback = "ch.qos.logback" % "logback-classic" % VersFbp.logbackvers
+
     val zio = "dev.zio" %% "zio" % VersFbp.zio
     val zio_logging = "dev.zio" %% "zio-logging" % VersFbp.zio
+    val zio_logg_slf4j    =  "dev.zio" % "zio-logging-slf4j_2.12" % VersFbp.zioLogSlf4j
 
     val zio_sttp       = "com.softwaremill.sttp.client3" %% "zio" % VersFbp.zioSttp
     val zio_sttp_async = "com.softwaremill.sttp.client3" %% "async-http-client-backend-zio" % VersFbp.zioSttp
     val zio_sttp_circe = "com.softwaremill.sttp.client3" %% "circe" % VersFbp.zioSttp
 
-    //val tsConfig = List("com.typesafe" % "config" % "1.4.2")
-
-    val zioDep = List(zio, zio_logging, zio_sttp, zio_sttp_async, zio_sttp_circe)
+    val zioDep = List(zio, zio_logging,zio_logg_slf4j, zio_sttp, zio_sttp_async, zio_sttp_circe)
 
     val circe_libs = Seq(
       "io.circe" %% "circe-core",
@@ -111,14 +117,11 @@ lazy val dependenciesFbParser =
       "io.circe" %% "circe-literal"
     ).map(_ % VersFbp.Circe) ++ Seq("io.circe" %% "circe-optics" % VersFbp.circeOptics)
 
-    // https://mvnrepository.com/artifact/org.slf4j/slf4j-api
-    //val slf4j = "org.slf4j" % "slf4j-api" % VersFbp.slf4jvers
-    val logback = "ch.qos.logback" % "logback-classic" % VersFbp.logbackvers
 
-    val deps = zioDep ++
-      //tsConfig ++
-      circe_libs ++
-      List(logback/*,slf4j*/)
+    val deps =
+      List(logback) ++
+      zioDep ++
+      circe_libs
   }
 
 //********************************************************************************
@@ -188,6 +191,13 @@ lazy val dependenciesTbot =
 
   addCompilerPlugin("org.scalamacros" %% "paradise" % "2.1.1" cross CrossVersion.full)
 
+  common / assembly / assemblyMergeStrategy := {
+    case PathList("module-info.class") => MergeStrategy.discard
+    case x if x.endsWith("/module-info.class") => MergeStrategy.discard
+    case PathList("META-INF", xs @ _*)         => MergeStrategy.discard
+    case "reference.conf" => MergeStrategy.concat
+    case _ => MergeStrategy.first
+  }
 
   db / assembly / assemblyMergeStrategy := {
     case PathList("module-info.class") => MergeStrategy.discard
@@ -214,6 +224,8 @@ lazy val dependenciesTbot =
   }
 
 /*
+case x if x.contains("io.netty.versions.properties") => MergeStrategy.discard
+
 assemblyMergeStrategy in assembly := {
   case PathList("META-INF", xs @ _*) => MergeStrategy.discard
   case "plugin.properties" => MergeStrategy.last

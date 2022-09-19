@@ -1,5 +1,5 @@
 
-select pid as process_id, 
+select pid as process_id,  
        usename as username, 
        datname as database_name, 
        client_addr as client_address, 
@@ -7,7 +7,7 @@ select pid as process_id,
        backend_start,
        state,
        state_change
-from pg_stat_activity;
+from pg_stat_activity; 
 
 
 delete from fba_load;
@@ -15,7 +15,9 @@ delete from fba_load;
 
 select * from fba_load;
 
-select sum(1) from events e;  -- 3883
+select sum(1) from events e;  -- 11377
+
+
 
 select e.fba_load_id ,sum(1) as cnt 
 from events e
@@ -159,7 +161,7 @@ where --e.event_id = 35910462 and
    
    ) ds 
    where ds.rn=1
-order by competitionname,eventname, ins_datetime desc;
+order by competitionname,eventname, ins_datetime desc; 
 
 
 --=================================================================================================================================================

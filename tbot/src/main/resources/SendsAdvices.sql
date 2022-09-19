@@ -66,7 +66,7 @@ insert into fba.advice(event_id,advice_text) values(28532,
 
 SELECT DISTINCT ei.event_id
                    FROM events ei
-                     LEFT JOIN score s_1 ON ei.id = s_1.events_id
+                     LEFT JOIN score s_1 ON ei.id = s_1.events_id 
                   WHERE ei.skid = 1 AND 
                   (s_1.team1coeff IS NOT NULL OR s_1.team2coeff IS NOT NULL) AND 
                   (
@@ -82,15 +82,17 @@ SELECT DISTINCT ei.event_id
                           AND (eii.timerseconds / 60) >= 90
                           )) AND (ei.timerseconds / 60) >= 55;
 
-select sum(1) from events e; -- 8684
+select sum(1) from events e; -- 8684 
 
 select sum(1) from score  s; -- 8684
+
+select sum(1) from events e;  -- 11377
                          
 select * from fba.v_football;
 
 select * from fba.advice; -- 1 row
 
-select sum(1) from fba.advice_sent -- 
+select sum(1) from fba.advice_sent -- 78
 
 
 
