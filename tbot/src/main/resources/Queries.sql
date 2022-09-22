@@ -15,7 +15,7 @@ delete from fba_load;
 
 select * from fba_load;
 
-select sum(1) from events e;  -- 11377
+select sum(1) from events e;  -- 23522
 
 
 

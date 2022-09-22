@@ -82,21 +82,17 @@ SELECT DISTINCT ei.event_id
                           AND (eii.timerseconds / 60) >= 90
                           )) AND (ei.timerseconds / 60) >= 55;
 
-select sum(1) from events e; -- 8684 
-
-select sum(1) from score  s; -- 8684
-
-select sum(1) from events e;  -- 11377
                          
-select * from fba.v_football;
+                         
+select sum(1) from events e; -- 27076 
 
-select * from fba.advice; -- 1 row
+select sum(1) from score  s; -- 26895
 
-select sum(1) from fba.advice_sent -- 78
+select sum(1) from fba.advice; -- 53
+
+select sum(1) from fba.advice_sent -- 159
 
 
-
-alter table fba.advice_sent add user_was_active integer;
 
 select * from fba.tgroup t 
 
@@ -226,6 +222,9 @@ SET lc_messages TO 'en_US.UTF-8';
 
 select 1/0;
 
+select sum(1) from events e; -- 25707
+
+--38 - 53
 select *
   from fba.advice a
   order by a.id desc

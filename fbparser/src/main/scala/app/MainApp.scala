@@ -6,12 +6,11 @@ import org.slf4j.LoggerFactory
 import service.{DbConnection, PgConnectionImpl}
 import services.{FbDownloader, FbDownloaderImpl}
 import sttp.client3.asynchttpclient.zio.{AsyncHttpClientZioBackend, SttpClient}
-import zio.{Schedule, Scope, ZIO, ZIOAppArgs, ZIOAppDefault, ZLayer}
+import zio.{Clock, Console, Layer, RLayer, Schedule, Scope, Task, ULayer, URLayer, ZIO, ZIOAppArgs, ZIOAppDefault, ZLayer, durationInt}
 
 import java.io
 import java.io.File
 import java.time.Duration
-import zio.{Clock, Console, Layer, RLayer, Schedule, Scope, ULayer, URLayer, ZIO, ZIOAppArgs, ZIOAppDefault, ZLayer, durationInt}
 
 object MainApp extends ZIOAppDefault{
 
@@ -59,13 +58,23 @@ object MainApp extends ZIOAppDefault{
       val configFilename :String = System.getProperty("user.dir")+File.separator+args.head
       log.info("There is external config file, path="+configFilename)
       val fileConfig :Config = ConfigFactory.parseFile(new io.File(configFilename))
-      ConfigHelper.getConfig(fileConfig)
+      val cfg = ConfigHelper.getConfig(fileConfig)
+      log.info(s"config .... ${cfg.dbConf.url} : ${cfg.dbConf.driver} / ${cfg.dbConf.username}")
+      cfg
     }
   } catch {
     case e:Exception =>
       log.error("ConfigFactory.load - cause:"+e.getCause+" msg:"+e.getMessage)
       throw e
   }
+
+  /*
+  def configZio: Task[AppConfig] = for {
+    resAppConfig <- ZIO.attempt{
+      config
+    }.catchAll{ex => ZIO.logError(s"configZio Exception: ${ex.getMessage} - ${ex.getCause}") *> ZIO.fail(ex)}
+  } yield resAppConfig
+*/
 
   /*
   in run parameter
@@ -76,7 +85,7 @@ object MainApp extends ZIOAppDefault{
     PgConnectionImpl.layer,
     AsyncHttpClientZioBackend.layer(),
     FbDownloaderImpl.layer
-  )
+  ).catchAllDefect{ex => ZIO.logError(s"Defect mainApp = ${ex.getMessage} - ${ex.getCause} - ${ex.getStackTrace}")}
 
   /**
    * https://zio.github.io/zio-logging/docs/overview/overview_index.html#slf4j-bridge

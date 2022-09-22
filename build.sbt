@@ -49,6 +49,7 @@ lazy val tbot = (project in file("tbot"))
 lazy val fbparser = (project in file("fbparser"))
   .settings(
     assembly / assemblyJarName := "fbparser.jar",
+    mainClass / run := Some("app.MainApp"),
     name := "fbparser",
     commonSettings,
     libraryDependencies ++= dependenciesFbParser.deps
@@ -192,35 +193,91 @@ lazy val dependenciesTbot =
   addCompilerPlugin("org.scalamacros" %% "paradise" % "2.1.1" cross CrossVersion.full)
 
   common / assembly / assemblyMergeStrategy := {
-    case PathList("module-info.class") => MergeStrategy.discard
-    case x if x.endsWith("/module-info.class") => MergeStrategy.discard
-    case PathList("META-INF", xs @ _*)         => MergeStrategy.discard
+    case "module-info.class"|"resources/control.conf"|"resources/mts.p12"|"resources/mts.pem" => MergeStrategy.discard
+    case "plugin.properties" => MergeStrategy.last
+    case "log4j.properties" => MergeStrategy.last
+    case "logback.xml" => MergeStrategy.last
+    case "resources/logback.xml" => MergeStrategy.last
+    case "resources/application.conf" => MergeStrategy.last
+    case "resources/reference.conf" => MergeStrategy.last
+    case "application.conf" => MergeStrategy.last
+    case PathList("application.conf") => MergeStrategy.concat
+    case PathList("reference.conf") => MergeStrategy.concat
+    case "resources/control.conf" => MergeStrategy.discard
     case "reference.conf" => MergeStrategy.concat
-    case _ => MergeStrategy.first
+    case "control.conf" => MergeStrategy.discard
+    case x if x.contains("io.netty.versions.properties") => MergeStrategy.discard
+    case PathList("META-INF", "services", xs @ _*) => MergeStrategy.first
+    case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+    case PathList(ps @ _*) if ps.last == "module-info.class" => MergeStrategy.discard
+    case "module-info.class"           => MergeStrategy.discard
+    case x => MergeStrategy.first
   }
 
   db / assembly / assemblyMergeStrategy := {
-    case PathList("module-info.class") => MergeStrategy.discard
-    case x if x.endsWith("/module-info.class") => MergeStrategy.discard
-    case PathList("META-INF", xs @ _*)         => MergeStrategy.discard
+    case "module-info.class"|"resources/control.conf"|"resources/mts.p12"|"resources/mts.pem" => MergeStrategy.discard
+    case "plugin.properties" => MergeStrategy.last
+    case "log4j.properties" => MergeStrategy.last
+    case "logback.xml" => MergeStrategy.last
+    case "resources/logback.xml" => MergeStrategy.last
+    case "resources/application.conf" => MergeStrategy.last
+    case "resources/reference.conf" => MergeStrategy.last
+    case "application.conf" => MergeStrategy.last
+    case PathList("application.conf") => MergeStrategy.concat
+    case PathList("reference.conf") => MergeStrategy.concat
+    case "resources/control.conf" => MergeStrategy.discard
     case "reference.conf" => MergeStrategy.concat
-    case _ => MergeStrategy.first
+    case "control.conf" => MergeStrategy.discard
+    case x if x.contains("io.netty.versions.properties") => MergeStrategy.discard
+    case PathList("META-INF", "services", xs @ _*) => MergeStrategy.first
+    case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+    case PathList(ps @ _*) if ps.last == "module-info.class" => MergeStrategy.discard
+    case "module-info.class"           => MergeStrategy.discard
+    case x => MergeStrategy.first
   }
 
   tbot / assembly / assemblyMergeStrategy := {
-    case PathList("module-info.class") => MergeStrategy.discard
-    case x if x.endsWith("/module-info.class") => MergeStrategy.discard
-    case PathList("META-INF", xs @ _*)         => MergeStrategy.discard
+    case "module-info.class"|"resources/control.conf"|"resources/mts.p12"|"resources/mts.pem" => MergeStrategy.discard
+    case "plugin.properties" => MergeStrategy.last
+    case "log4j.properties" => MergeStrategy.last
+    case "logback.xml" => MergeStrategy.last
+    case "resources/logback.xml" => MergeStrategy.last
+    case "resources/application.conf" => MergeStrategy.last
+    case "resources/reference.conf" => MergeStrategy.last
+    case "application.conf" => MergeStrategy.last
+    case PathList("application.conf") => MergeStrategy.concat
+    case PathList("reference.conf") => MergeStrategy.concat
+    case "resources/control.conf" => MergeStrategy.discard
     case "reference.conf" => MergeStrategy.concat
-    case _ => MergeStrategy.first
+    case "control.conf" => MergeStrategy.discard
+    case x if x.contains("io.netty.versions.properties") => MergeStrategy.discard
+    case PathList("META-INF", "services", xs @ _*) => MergeStrategy.first
+    case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+    case PathList(ps @ _*) if ps.last == "module-info.class" => MergeStrategy.discard
+    case "module-info.class"           => MergeStrategy.discard
+    case x => MergeStrategy.first
   }
 
   fbparser / assembly / assemblyMergeStrategy := {
-    case PathList("module-info.class") => MergeStrategy.discard
-    case x if x.endsWith("/module-info.class") => MergeStrategy.discard
-    case PathList("META-INF", xs @ _*)         => MergeStrategy.discard
+    case "module-info.class"|"resources/control.conf"|"resources/mts.p12"|"resources/mts.pem" => MergeStrategy.discard
+    case "plugin.properties" => MergeStrategy.last
+    case "log4j.properties" => MergeStrategy.last
+    case "logback.xml" => MergeStrategy.last
+    case "resources/logback.xml" => MergeStrategy.last
+    case "resources/application.conf" => MergeStrategy.last
+    case "resources/reference.conf" => MergeStrategy.last
+    case "application.conf" => MergeStrategy.last
+    case PathList("application.conf") => MergeStrategy.concat
+    case PathList("reference.conf") => MergeStrategy.concat
+    case "resources/control.conf" => MergeStrategy.discard
     case "reference.conf" => MergeStrategy.concat
-    case _ => MergeStrategy.first
+    case "control.conf" => MergeStrategy.discard
+    case x if x.contains("io.netty.versions.properties") => MergeStrategy.discard
+    case PathList("META-INF", "services", xs @ _*) => MergeStrategy.first
+    case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+    case PathList(ps @ _*) if ps.last == "module-info.class" => MergeStrategy.discard
+    case "module-info.class"           => MergeStrategy.discard
+    case x => MergeStrategy.first
   }
 
 /*

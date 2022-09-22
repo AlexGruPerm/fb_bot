@@ -142,8 +142,8 @@ trait DbConnection {
 //3. service interface implementation
 case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
 
-  override def connection: Task[Connection] = {
-    ZIO.attempt {
+  override def connection: Task[Connection] = for {
+    c <- ZIO.attempt {
       val props = new Properties()
       props.setProperty("user", conf.username)
       props.setProperty("password", conf.password)
@@ -157,7 +157,9 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
       stmtSet.execute()
       conn
     }
-  }
+    _ <- ZIO.logInfo(s"connection AFTER isClosed = ${c.isClosed}")
+      .catchAllDefect{case ex => ZIO.logError(s"connection Defect: ${ex.getMessage} - ${ex.getCause} ")}.unit
+  } yield c
 
   //todo: check for removing this method
   override def execute(sql: String): Task[String] =
@@ -448,7 +450,9 @@ object PgConnectionImpl{
     ZLayer{
       for {
         cfg <- ZIO.service[DbConfig]
-        _ <- ZIO.logInfo(s"PgConnectionImpl cfg.url = ${cfg.url}")
+        _ <- ZIO.logInfo(s"PgConnectionImpl cfg.driver   = ${cfg.driver}")
+        _ <- ZIO.logInfo(s"PgConnectionImpl cfg.username = ${cfg.username}")
+        _ <- ZIO.logInfo(s"PgConnectionImpl cfg.url      = ${cfg.url}")
       } yield PgConnectionImpl(cfg)
     }
 }

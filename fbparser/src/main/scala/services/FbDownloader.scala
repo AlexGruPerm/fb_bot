@@ -122,12 +122,12 @@ import java.sql.Statement
     override def getUrlContent(url: String): Task[Int] =
       for {
         time <- clock.currentDateTime
-        _ <- console.printLine(s"$time - $url")
-        _ <- console.printLine("Begin request")
+        _ <- ZIO.logInfo(s"$time - $url")
+        _ <- ZIO.logInfo("Begin request")
         basicReq  = basicRequest.post(uri"$url").response(asJson[LiveEventsResponse])
         response <- client.send(basicReq)
-        _ <- console.printLine(s" response statusText    = ${response.statusText}")
-        _ <- console.printLine(s" response code          = ${response.code}")
+        _ <- ZIO.logInfo(s" response statusText    = ${response.statusText}")
+        _ <- ZIO.logInfo(s" response code          = ${response.code}")
 
         _ <- saveEventsScores(response.body.right.get.events).when(response.code == StatusCode.Ok)
 
