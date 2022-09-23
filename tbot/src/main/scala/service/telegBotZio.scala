@@ -1,6 +1,6 @@
 package service
 
-import common.BotConfig
+import common.{AppConfig, BotConfig}
 import zio._
 
 //1. trait
@@ -28,10 +28,10 @@ case class FbBotZioImpl(conf: BotConfig,conn : DbConnection) extends FbBotZio(co
 
 //4. converting service implementation into ZLayer
 object FbBotZioImpl {
-  val layer: ZLayer[BotConfig with DbConnection, Nothing, FbBotZioImpl] = //ZLayer.succeed(FbBotZioImpl)
+  val layer: ZLayer[AppConfig/*BotConfig*/ with DbConnection, Nothing, FbBotZioImpl] = //ZLayer.succeed(FbBotZioImpl)
     ZLayer {
       for {
-        conf <- ZIO.service[BotConfig]
+        conf <- ZIO.service[AppConfig].map(ac => ac.botConfig)
         conn <- ZIO.service[DbConnection]
       } yield FbBotZioImpl(conf,conn)
     }

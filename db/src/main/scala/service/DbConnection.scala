@@ -1,6 +1,6 @@
 package service
 
-import common.{Advice, AdviceGroup, DbConfig}
+import common.{Advice, AdviceGroup, AppConfig, DbConfig}
 import zio.{Task, ZIO, ZLayer}
 
 import java.sql.{Connection, DriverManager, ResultSet, SQLException, Statement, Types}
@@ -148,7 +148,7 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
       props.setProperty("user", conf.username)
       props.setProperty("password", conf.password)
       val conn: Connection = DriverManager.getConnection(conf.url, props)
-      conn.setClientInfo("ApplicationName", s"fb_adviser")
+      conn.setClientInfo("ApplicationName", s"fb_bot")
       val stmt: Statement = conn.createStatement
       val rs: ResultSet = stmt.executeQuery("SELECT pg_backend_pid() as pg_backend_pid")
       rs.next()
@@ -157,8 +157,7 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
       stmtSet.execute()
       conn
     }
-    _ <- ZIO.logInfo(s"connection AFTER isClosed = ${c.isClosed}")
-      .catchAllDefect{case ex => ZIO.logError(s"connection Defect: ${ex.getMessage} - ${ex.getCause} ")}.unit
+      //.catchAllDefect{case ex => ZIO.logError(s"connection Defect: ${ex.getMessage} - ${ex.getCause} ")}.unit
   } yield c
 
   //todo: check for removing this method
@@ -446,10 +445,10 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
 
 //4. converting service implementation into ZLayer
 object PgConnectionImpl{
-  val layer :ZLayer[DbConfig,Throwable,DbConnection] =
+  val layer :ZLayer[AppConfig/*DbConfig*/,Throwable,DbConnection] =
     ZLayer{
       for {
-        cfg <- ZIO.service[DbConfig]
+        cfg <- ZIO.service[AppConfig/*DbConfig*/].map(ac => ac.dbConf)
         _ <- ZIO.logInfo(s"PgConnectionImpl cfg.driver   = ${cfg.driver}")
         _ <- ZIO.logInfo(s"PgConnectionImpl cfg.username = ${cfg.username}")
         _ <- ZIO.logInfo(s"PgConnectionImpl cfg.url      = ${cfg.url}")

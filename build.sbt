@@ -40,6 +40,7 @@ lazy val db = (project in file("db"))
 lazy val tbot = (project in file("tbot"))
   .settings(
     assembly / assemblyJarName := "tbot.jar",
+    mainClass / run := Some("app.Bot"),
     name := "tbot",
     commonSettings,
     libraryDependencies ++= dependenciesTbot.deps
@@ -49,7 +50,7 @@ lazy val tbot = (project in file("tbot"))
 lazy val fbparser = (project in file("fbparser"))
   .settings(
     assembly / assemblyJarName := "fbparser.jar",
-    mainClass / run := Some("app.MainApp"),
+    mainClass / run := Some("app.Parser"),
     name := "fbparser",
     commonSettings,
     libraryDependencies ++= dependenciesFbParser.deps
@@ -90,20 +91,19 @@ val VersFbp = new {
   val zioSttp = "3.6.2"
   val Circe = "0.14.2"
   val circeOptics = "0.14.1"
-  val slf4jvers = "2.0.0"
-  val logbackvers = "1.2.3"
-  val zioLogSlf4j = "0.4.0"
+  //val slf4jvers = "2.0.0"
+  val logbackvers = "1.4.1"//"1.2.3"
+  val zioLog = "2.1.1"
+  val zioLogSlf4j = "2.1.1"//"0.4.0"
 }
 
 lazy val dependenciesFbParser =
   new {
-    // https://mvnrepository.com/artifact/org.slf4j/slf4j-api
-    //val slf4j = "org.slf4j" % "slf4j-api" % VersFbp.slf4jvers
-    val logback = "ch.qos.logback" % "logback-classic" % VersFbp.logbackvers
+    val logback = List("ch.qos.logback" % "logback-classic" % VersFbp.logbackvers)
 
     val zio = "dev.zio" %% "zio" % VersFbp.zio
-    val zio_logging = "dev.zio" %% "zio-logging" % VersFbp.zio
-    val zio_logg_slf4j    =  "dev.zio" % "zio-logging-slf4j_2.12" % VersFbp.zioLogSlf4j
+    val zio_logging = "dev.zio" %% "zio-logging" % VersFbp.zioLog
+    val zio_logg_slf4j    =  "dev.zio" %% "zio-logging-slf4j" % VersFbp.zioLogSlf4j
 
     val zio_sttp       = "com.softwaremill.sttp.client3" %% "zio" % VersFbp.zioSttp
     val zio_sttp_async = "com.softwaremill.sttp.client3" %% "async-http-client-backend-zio" % VersFbp.zioSttp
@@ -118,9 +118,8 @@ lazy val dependenciesFbParser =
       "io.circe" %% "circe-literal"
     ).map(_ % VersFbp.Circe) ++ Seq("io.circe" %% "circe-optics" % VersFbp.circeOptics)
 
-
     val deps =
-      List(logback) ++
+      logback ++
       zioDep ++
       circe_libs
   }
@@ -203,14 +202,14 @@ lazy val dependenciesTbot =
     case "application.conf" => MergeStrategy.last
     case PathList("application.conf") => MergeStrategy.concat
     case PathList("reference.conf") => MergeStrategy.concat
-    case "resources/control.conf" => MergeStrategy.discard
+    //case "resources/control.conf" => MergeStrategy.discard
     case "reference.conf" => MergeStrategy.concat
     case "control.conf" => MergeStrategy.discard
     case x if x.contains("io.netty.versions.properties") => MergeStrategy.discard
     case PathList("META-INF", "services", xs @ _*) => MergeStrategy.first
     case PathList("META-INF", xs @ _*) => MergeStrategy.discard
     case PathList(ps @ _*) if ps.last == "module-info.class" => MergeStrategy.discard
-    case "module-info.class"           => MergeStrategy.discard
+    //case "module-info.class"           => MergeStrategy.discard
     case x => MergeStrategy.first
   }
 
@@ -225,14 +224,14 @@ lazy val dependenciesTbot =
     case "application.conf" => MergeStrategy.last
     case PathList("application.conf") => MergeStrategy.concat
     case PathList("reference.conf") => MergeStrategy.concat
-    case "resources/control.conf" => MergeStrategy.discard
+    //case "resources/control.conf" => MergeStrategy.discard
     case "reference.conf" => MergeStrategy.concat
     case "control.conf" => MergeStrategy.discard
     case x if x.contains("io.netty.versions.properties") => MergeStrategy.discard
     case PathList("META-INF", "services", xs @ _*) => MergeStrategy.first
     case PathList("META-INF", xs @ _*) => MergeStrategy.discard
     case PathList(ps @ _*) if ps.last == "module-info.class" => MergeStrategy.discard
-    case "module-info.class"           => MergeStrategy.discard
+    //case "module-info.class"           => MergeStrategy.discard
     case x => MergeStrategy.first
   }
 
@@ -247,14 +246,14 @@ lazy val dependenciesTbot =
     case "application.conf" => MergeStrategy.last
     case PathList("application.conf") => MergeStrategy.concat
     case PathList("reference.conf") => MergeStrategy.concat
-    case "resources/control.conf" => MergeStrategy.discard
+    //case "resources/control.conf" => MergeStrategy.discard
     case "reference.conf" => MergeStrategy.concat
     case "control.conf" => MergeStrategy.discard
     case x if x.contains("io.netty.versions.properties") => MergeStrategy.discard
     case PathList("META-INF", "services", xs @ _*) => MergeStrategy.first
     case PathList("META-INF", xs @ _*) => MergeStrategy.discard
     case PathList(ps @ _*) if ps.last == "module-info.class" => MergeStrategy.discard
-    case "module-info.class"           => MergeStrategy.discard
+    //case "module-info.class"           => MergeStrategy.discard
     case x => MergeStrategy.first
   }
 
@@ -269,35 +268,13 @@ lazy val dependenciesTbot =
     case "application.conf" => MergeStrategy.last
     case PathList("application.conf") => MergeStrategy.concat
     case PathList("reference.conf") => MergeStrategy.concat
-    case "resources/control.conf" => MergeStrategy.discard
+    //case "resources/control.conf" => MergeStrategy.discard
     case "reference.conf" => MergeStrategy.concat
     case "control.conf" => MergeStrategy.discard
     case x if x.contains("io.netty.versions.properties") => MergeStrategy.discard
     case PathList("META-INF", "services", xs @ _*) => MergeStrategy.first
     case PathList("META-INF", xs @ _*) => MergeStrategy.discard
     case PathList(ps @ _*) if ps.last == "module-info.class" => MergeStrategy.discard
-    case "module-info.class"           => MergeStrategy.discard
+    //case "module-info.class"           => MergeStrategy.discard
     case x => MergeStrategy.first
   }
-
-/*
-case x if x.contains("io.netty.versions.properties") => MergeStrategy.discard
-
-assemblyMergeStrategy in assembly := {
-  case PathList("META-INF", xs @ _*) => MergeStrategy.discard
-  case "plugin.properties" => MergeStrategy.last
-  case "log4j.properties" => MergeStrategy.last
-  case "logback.xml" => MergeStrategy.last
-  case "resources/logback.xml" => MergeStrategy.last
-  case "resources/application.conf" => MergeStrategy.last
-  case "resources/reference.conf" => MergeStrategy.last
-  case "application.conf" => MergeStrategy.last
-  case PathList("application.conf") => MergeStrategy.concat
-  case PathList("reference.conf") => MergeStrategy.concat
-  case "resources/control.conf" => MergeStrategy.discard
-  case "control.conf" => MergeStrategy.discard
-  case "resources/mtspredbot.pem" => MergeStrategy.discard
-  case "YOURPUBLIC.pem" => MergeStrategy.discard
-  case x => MergeStrategy.first
-}
-*/

@@ -84,11 +84,11 @@ SELECT DISTINCT ei.event_id
 
                          
                          
-select sum(1) from events e; -- 27076 
+select sum(1) from events e; -- 32621 
 
 select sum(1) from score  s; -- 26895
 
-select sum(1) from fba.advice; -- 53
+select sum(1) from fba.advice; -- 89
 
 select sum(1) from fba.advice_sent -- 159
 

@@ -19,7 +19,7 @@ import java.io
  * --illegal-access=warn
  *
  */
-object Main extends ZIOAppDefault {
+object Bot extends ZIOAppDefault {
 
   val configBot: ZIO[String, Throwable, AppConfig] =
     for {
@@ -40,8 +40,6 @@ object Main extends ZIOAppDefault {
     conf <- ZIO.service[AppConfig]
     _ <- botEffect.provide(
       ZLayer.succeed(conf),
-      ZLayer.succeed(conf.dbConf),
-      ZLayer.succeed(conf.botConfig),
       PgConnectionImpl.layer,
       FbBotZioImpl.layer
     )

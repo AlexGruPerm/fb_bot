@@ -6,15 +6,28 @@ import org.slf4j.LoggerFactory
 import service.{DbConnection, PgConnectionImpl}
 import services.{FbDownloader, FbDownloaderImpl}
 import sttp.client3.asynchttpclient.zio.{AsyncHttpClientZioBackend, SttpClient}
-import zio.{Clock, Console, Layer, RLayer, Schedule, Scope, Task, ULayer, URLayer, ZIO, ZIOAppArgs, ZIOAppDefault, ZLayer, durationInt}
+import zio.logging.LogFormat
+import zio.logging.backend.SLF4J
+import zio.{Chunk, Clock, Console, ExitCode, Layer, RLayer, Schedule, Scope, Task, ULayer, URLayer, ZIO, ZIOAppArgs, ZIOAppDefault, ZLayer, durationInt}
 
 import java.io
 import java.io.File
 import java.time.Duration
 
-object MainApp extends ZIOAppDefault{
+object Parser extends ZIOAppDefault {
 
-  val parserEffect :ZIO[DbConnection with SttpClient with FbDownloader, Throwable, Unit] =
+  private val logger = /*Runtime.removeDefaultLoggers >>>*/ SLF4J.slf4j
+
+  //todo: rename it's not a bot
+  val configBot: ZIO[String, Throwable, AppConfig] =
+    for {
+      configParam <- ZIO.service[String]
+      configFilename: String = System.getProperty("user.dir") + File.separator + configParam
+      fileConfig = ConfigFactory.parseFile(new io.File(configFilename))
+      appConfig = ConfigHelper.getConfig(fileConfig)
+    } yield appConfig
+
+  val parserEffect: ZIO[AppConfig with DbConnection with SttpClient with FbDownloader, Throwable, Unit] =
     for {
       //console <- ZIO.console
       fbdown <- ZIO.service[FbDownloader]
@@ -23,8 +36,9 @@ object MainApp extends ZIOAppDefault{
       //logicFb <- fbdown.getUrlContent(fbUrl).repeat(Schedule.spaced(60.seconds)).forkDaemon
 
       logicFb <- fbdown.getUrlContent(fbUrl)
-        .catchAll{
-          ex: Throwable => ZIO.logError(s"Exception catchAll fbdown.getUrlContent ${ex.getMessage} - ${ex.getCause}")}
+        .catchAll {
+          ex: Throwable => ZIO.logError(s"Exception catchAll fbdown.getUrlContent ${ex.getMessage} - ${ex.getCause}")
+        }
         .repeat(Schedule.spaced(60.seconds))
         .forkDaemon
 
@@ -36,8 +50,9 @@ object MainApp extends ZIOAppDefault{
 
       // todo: may be combine in chain, if first save something then execute second effect
       logSaveAdv <- fbdown.checkAdvice
-        .catchAllDefect{ex: Throwable =>
-          ZIO.logError(s"Fatal: fbdown.checkAdvice [${ex.getMessage}] [${ex.getCause}]")}
+        .catchAllDefect { ex: Throwable =>
+          ZIO.logError(s"Fatal: fbdown.checkAdvice [${ex.getMessage}] [${ex.getCause}]")
+        }
         .repeat(Schedule.spaced(30.seconds)).forkDaemon
 
       _ <- logicFb.join
@@ -45,6 +60,7 @@ object MainApp extends ZIOAppDefault{
 
     } yield ()
 
+  /*
   val log = LoggerFactory.getLogger(getClass.getName)
 
   val args :List[String] = List("fbparser\\src\\main\\resources\\control.conf")
@@ -67,6 +83,7 @@ object MainApp extends ZIOAppDefault{
       log.error("ConfigFactory.load - cause:"+e.getCause+" msg:"+e.getMessage)
       throw e
   }
+  */
 
   /*
   def configZio: Task[AppConfig] = for {
@@ -76,23 +93,48 @@ object MainApp extends ZIOAppDefault{
   } yield resAppConfig
 */
 
-  /*
-  in run parameter
-  fbparser\src\main\resources\control.conf
-  */
-  val mainApp: ZIO[Any, Throwable, Unit] = parserEffect.provide(
-    ZLayer.succeed(config.dbConf),
-    PgConnectionImpl.layer,
-    AsyncHttpClientZioBackend.layer(),
-    FbDownloaderImpl.layer
-  ).catchAllDefect{ex => ZIO.logError(s"Defect mainApp = ${ex.getMessage} - ${ex.getCause} - ${ex.getStackTrace}")}
+
+  val MainApp: ZIO[AppConfig, Throwable, Unit] = for {
+    _ <- ZIO.logInfo("Begin fbparser mainApp")
+    conf <- ZIO.service[AppConfig]
+    _ <- parserEffect.provide(
+      ZLayer.succeed(conf),
+      PgConnectionImpl.layer,
+      AsyncHttpClientZioBackend.layer(),
+      FbDownloaderImpl.layer
+    ).catchAllDefect { ex =>
+      ZIO.logError(s"Defect mainApp = ${ex.getMessage} - ${ex.getCause} - ${ex.getStackTrace.mkString("Array(", ", ", ")")}")
+    }
+  } yield ()
+
+  def botConfigZLayer(confParam: ZIOAppArgs): ZIO[Any, Throwable, ZLayer[Any, Throwable, AppConfig]] = for {
+    _ <- ZIO.fail(new Exception("Empty parameters."))
+      .when(confParam.getArgs.isEmpty)
+    appCfg = ZLayer {
+      for {
+        appConfig <- confParam.getArgs.toList match {
+          case List(configFile) => configBot.provide(ZLayer.succeed(configFile))
+          case _ => ZIO.fail(new Exception("Empty list of input parameters. "))
+        }
+      } yield appConfig
+    }
+  } yield appCfg
 
   /**
    * https://zio.github.io/zio-logging/docs/overview/overview_index.html#slf4j-bridge
    * import zio.logging.slf4j.Slf4jBridge
    * program.provideCustom(Slf4jBridge.initialize)
    */
-  def run: ZIO[Any with ZIOAppArgs with Scope, Any, Any] = {
-    mainApp.exitCode
-  }
+  def run: ZIO[Any with ZIOAppArgs with Scope, Any, Any] = for {
+    args <- ZIO.service[ZIOAppArgs]
+    botCfg <- botConfigZLayer(args)
+    res <- MainApp.provide(botCfg).provide(logger).exitCode
+  } yield res
+
+/*
+    conf = botConfigZLayer(args)
+    res <- MainApp.provide(conf).exitCode
+*/
+
 }
+
