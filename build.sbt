@@ -87,13 +87,15 @@ lazy val dependenciesPg =
 // Dependencies for project fbparser.
 
 val VersFbp = new {
-  val zio  = "2.0.0-RC6" // todo: update to 2.0.2
-  val zioSttp = "3.8.0" //"3.6.2"  // todo: update to 3.8.0
+  val zio  =  "2.0.2"  //"2.0.0-RC6" // todo: update to 2.0.2
+  val zioLog = "2.1.1"
+
+  val zioSttp = "3.8.0"
   val Circe = "0.14.2"
   val circeOptics = "0.14.1"
   val slf4jvers = "2.0.0"
   val logbackvers = "1.2.3"//"1.4.1"
-  //val zioLog = "2.1.1"
+
 
   //val zioLogSlf4j = "2.1.1"
   val zioLogSlf4j = "0.4.0"
@@ -104,7 +106,7 @@ lazy val dependenciesFbParser =
     val logback = "ch.qos.logback" % "logback-classic" % VersFbp.logbackvers
 
     val zio = "dev.zio" %% "zio" % VersFbp.zio
-    val zio_logging = "dev.zio" %% "zio-logging" % VersFbp.zio
+    val zio_logging = "dev.zio" %% "zio-logging" % VersFbp.zioLog
 
     val zio_logg_slf4j    =  "dev.zio" % "zio-logging-slf4j_2.12" % VersFbp.zioLogSlf4j
     //val zio_logg_slf4j    =  "dev.zio" %% "zio-logging-slf4j" % "2.0.1"//"2.1.1"
