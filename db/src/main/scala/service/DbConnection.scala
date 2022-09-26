@@ -185,7 +185,7 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
   def getAdvicesGroups: ZIO[Any,Throwable,List[AdviceGroup]] =
     (
       for {
-      _ <- ZIO.logInfo("getAdvicesGroups [DB] ")
+      //_ <- ZIO.logInfo("getAdvicesGroups [DB] ")
       pgc <- connection
       pstmt = pgc.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
       //todo: rewrite query, it's nonoptimal, special e.id in (select max(ei.id) ....
@@ -212,7 +212,7 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
             rsi.getInt("is_active_user")
           )
         }.toList
-      _ <- ZIO.logInfo(s"There are ${results.size} advice-group(s) to send.")
+      //_ <- ZIO.logInfo(s"There are ${results.size} advice-group(s) to send.")
       _ = pstmt.close()
       _ = pstmt.getConnection.close()
     } yield results
@@ -231,7 +231,7 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
 
   def saveAdvices: Task[Int] =
     for {
-      _ <- ZIO.logInfo("Begin saveAdvices")
+      //_ <- ZIO.logInfo("Begin saveAdvices")
       pstmt <- prepStmtSaveAdvice //prepStmtSaveSentGrp
       res <- ZIO.attempt{pstmt.executeUpdate()}
         .catchAll {

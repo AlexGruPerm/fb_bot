@@ -65,6 +65,7 @@ import java.sql.Statement
     val _LiveEventsResponse = root.value.result.string
 
     def saveEventsScores(evs: Seq[LiveEvent]) :Task[Unit] = for {
+      //      _ <- ZIO.logInfo("---------------- saveEventsScores -------------------")
       _ <- console.printLine(" ")
       _ <- console.printLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
       _ <- console.printLine(s"   Events count = ${evs.size}")
@@ -126,16 +127,20 @@ import java.sql.Statement
         _ <- ZIO.logInfo("Begin request")
         basicReq  = basicRequest.post(uri"$url").response(asJson[LiveEventsResponse])
         response <- client.send(basicReq)
-        _ <- ZIO.logInfo(s" response statusText    = ${response.statusText}")
-        _ <- ZIO.logInfo(s" response code          = ${response.code}")
+          //.catchAllDefect{ex =>ZIO.logError(s"") }
+        _ <- console.printLine(s"console response statusText    = ${response.statusText}")
+        _ <- console.printLine(s"console response code          = ${response.code}")
+
+        _ <- ZIO.logInfo(s"zio response statusText    = ${response.statusText}")
+        _ <- ZIO.logInfo(s"zio response code          = ${response.code}")
 
         _ <- saveEventsScores(response.body.right.get.events).when(response.code == StatusCode.Ok)
 
-        _ <- ZIO.logError("getUrlContent CODE = 503, Service temporarily unavailable sleep 1 minute.")
+        _ <- console.printLine("getUrlContent CODE = 503, Service temporarily unavailable sleep 1 minute.")
           .zip(ZIO.sleep(60.seconds))
           .when(response.code == StatusCode.ServiceUnavailable)
 
-        _ <- ZIO.logError("getUrlContent CODE != 200 ").when(response.code != StatusCode.Ok)
+        _ <- console.printLine/*ZIO.logError*/("getUrlContent CODE != 200 ").when(response.code != StatusCode.Ok)
 
         res <- ZIO.succeed(1)
       } yield res

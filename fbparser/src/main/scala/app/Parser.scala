@@ -6,8 +6,9 @@ import org.slf4j.LoggerFactory
 import service.{DbConnection, PgConnectionImpl}
 import services.{FbDownloader, FbDownloaderImpl}
 import sttp.client3.asynchttpclient.zio.{AsyncHttpClientZioBackend, SttpClient}
+import sttp.client3.httpclient.zio.HttpClientZioBackend
 import zio.logging.LogFormat
-import zio.logging.backend.SLF4J
+//import zio.logging.backend.SLF4J
 import zio.{Chunk, Clock, Console, ExitCode, Layer, RLayer, Schedule, Scope, Task, ULayer, URLayer, ZIO, ZIOAppArgs, ZIOAppDefault, ZLayer, durationInt}
 
 import java.io
@@ -16,7 +17,9 @@ import java.time.Duration
 
 object Parser extends ZIOAppDefault {
 
-  private val logger = /*Runtime.removeDefaultLoggers >>>*/ SLF4J.slf4j
+  //private val logger = SLF4J.slf4j
+
+  val log = LoggerFactory.getLogger(getClass.getName)
 
   //todo: rename it's not a bot
   val configBot: ZIO[String, Throwable, AppConfig] =
@@ -29,11 +32,9 @@ object Parser extends ZIOAppDefault {
 
   val parserEffect: ZIO[AppConfig with DbConnection with SttpClient with FbDownloader, Throwable, Unit] =
     for {
-      //console <- ZIO.console
       fbdown <- ZIO.service[FbDownloader]
       fbUrl = "https://line06w.bk6bba-resources.com/line/desktop/topEvents3?place=live&sysId=1&lang=ru&salt=7u4qrf8pq08l5a08288&supertop=4&scopeMarket=1600"
 
-      //logicFb <- fbdown.getUrlContent(fbUrl).repeat(Schedule.spaced(60.seconds)).forkDaemon
 
       logicFb <- fbdown.getUrlContent(fbUrl)
         .catchAll {
@@ -41,12 +42,6 @@ object Parser extends ZIOAppDefault {
         }
         .repeat(Schedule.spaced(60.seconds))
         .forkDaemon
-
-      /*
-        .catchAllDefect{
-       ex: Throwable => ZIO.logError(s"Exception catchAllDefect fbdown.getUrlContent ${ex.getMessage} - ${ex.getCause}")
-      }
-      */
 
       // todo: may be combine in chain, if first save something then execute second effect
       logSaveAdv <- fbdown.checkAdvice
@@ -59,40 +54,6 @@ object Parser extends ZIOAppDefault {
       _ <- logSaveAdv.join
 
     } yield ()
-
-  /*
-  val log = LoggerFactory.getLogger(getClass.getName)
-
-  val args :List[String] = List("fbparser\\src\\main\\resources\\control.conf")
-
-  val config :AppConfig = try {
-    if (args.isEmpty) {
-      log.info("There is no external config file.")
-      //ConfigFactory.load()
-      throw new Exception("There is no external config file.")
-    } else {
-      val configFilename :String = System.getProperty("user.dir")+File.separator+args.head
-      log.info("There is external config file, path="+configFilename)
-      val fileConfig :Config = ConfigFactory.parseFile(new io.File(configFilename))
-      val cfg = ConfigHelper.getConfig(fileConfig)
-      log.info(s"config .... ${cfg.dbConf.url} : ${cfg.dbConf.driver} / ${cfg.dbConf.username}")
-      cfg
-    }
-  } catch {
-    case e:Exception =>
-      log.error("ConfigFactory.load - cause:"+e.getCause+" msg:"+e.getMessage)
-      throw e
-  }
-  */
-
-  /*
-  def configZio: Task[AppConfig] = for {
-    resAppConfig <- ZIO.attempt{
-      config
-    }.catchAll{ex => ZIO.logError(s"configZio Exception: ${ex.getMessage} - ${ex.getCause}") *> ZIO.fail(ex)}
-  } yield resAppConfig
-*/
-
 
   val MainApp: ZIO[AppConfig, Throwable, Unit] = for {
     _ <- ZIO.logInfo("Begin fbparser mainApp")
@@ -120,21 +81,12 @@ object Parser extends ZIOAppDefault {
     }
   } yield appCfg
 
-  /**
-   * https://zio.github.io/zio-logging/docs/overview/overview_index.html#slf4j-bridge
-   * import zio.logging.slf4j.Slf4jBridge
-   * program.provideCustom(Slf4jBridge.initialize)
-   */
+
   def run: ZIO[Any with ZIOAppArgs with Scope, Any, Any] = for {
     args <- ZIO.service[ZIOAppArgs]
     botCfg <- botConfigZLayer(args)
-    res <- MainApp.provide(botCfg).provide(logger).exitCode
+    res <- MainApp.provide(botCfg)/*.provide(logger)*/.exitCode
   } yield res
-
-/*
-    conf = botConfigZLayer(args)
-    res <- MainApp.provide(conf).exitCode
-*/
 
 }
 
