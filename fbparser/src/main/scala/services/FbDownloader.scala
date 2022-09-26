@@ -59,17 +59,13 @@ import java.sql.Statement
 
 
   //3. Service implementations (classes) should accept all dependencies in constructor
-  case class FbDownloaderImpl(console: Console, clock: Clock, client: SttpBackend[Task, Any]/*SttpClient*/, conn: DbConnection)
+  case class FbDownloaderImpl(/*console: Console,*/ clock: Clock, client: SttpBackend[Task, Any]/*SttpClient*/, conn: DbConnection)
     extends FbDownloader {
 
     val _LiveEventsResponse = root.value.result.string
 
     def saveEventsScores(evs: Seq[LiveEvent]) :Task[Unit] = for {
-      //      _ <- ZIO.logInfo("---------------- saveEventsScores -------------------")
-      _ <- console.printLine(" ")
-      _ <- console.printLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-      _ <- console.printLine(s"   Events count = ${evs.size}")
-      _ <- console.printLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+      _ <- ZIO.logInfo/*console.printLine*/(s" Events count = ${evs.size}")
       idFbaLoad <- conn.save_fba_load
       _ <- ZIO.foreachDiscard(evs
         .filter(ei => ei.markets.nonEmpty && ei.timer.nonEmpty && ei.markets.exists(mf => mf.ident == "Results"))){ev =>
@@ -112,7 +108,7 @@ import java.sql.Statement
                 ev.scores(0).head.c2
               ).as(ZIO.unit)
             } else {
-              console.printLine("not interested!!!")
+              ZIO.logInfo/*console.printLine*/("not interested!!!")
             })
           }.when(idFbaEvent!=0)
             .catchAllDefect{ex: Throwable => ZIO.logError(s"Exception save SCORE ${ex.getMessage} - ${ex.getCause}")}
@@ -128,19 +124,18 @@ import java.sql.Statement
         basicReq  = basicRequest.post(uri"$url").response(asJson[LiveEventsResponse])
         response <- client.send(basicReq)
           //.catchAllDefect{ex =>ZIO.logError(s"") }
-        _ <- console.printLine(s"console response statusText    = ${response.statusText}")
-        _ <- console.printLine(s"console response code          = ${response.code}")
-
-        _ <- ZIO.logInfo(s"zio response statusText    = ${response.statusText}")
-        _ <- ZIO.logInfo(s"zio response code          = ${response.code}")
+        //_ <- console.printLine(s"console response statusText    = ${response.statusText}")
+        //_ <- console.printLine(s"console response code          = ${response.code}")
+        _ <- ZIO.logInfo(s"response statusText    = ${response.statusText}")
+        _ <- ZIO.logInfo(s"response code          = ${response.code}")
 
         _ <- saveEventsScores(response.body.right.get.events).when(response.code == StatusCode.Ok)
 
-        _ <- console.printLine("getUrlContent CODE = 503, Service temporarily unavailable sleep 1 minute.")
+        _ <- ZIO.logInfo/*console.printLine*/("getUrlContent CODE = 503, Service temporarily unavailable sleep 1 minute.")
           .zip(ZIO.sleep(60.seconds))
           .when(response.code == StatusCode.ServiceUnavailable)
 
-        _ <- console.printLine/*ZIO.logError*/("getUrlContent CODE != 200 ").when(response.code != StatusCode.Ok)
+        _ <- ZIO.logInfo/*console.printLine*/("getUrlContent CODE != 200 ").when(response.code != StatusCode.Ok)
 
         res <- ZIO.succeed(1)
       } yield res
@@ -158,13 +153,13 @@ import java.sql.Statement
     val layer: ZLayer[SttpBackend[Task, Any]/*SttpClient*/ with DbConnection,Throwable,FbDownloader] =
       ZLayer {
         for {
-          console <- ZIO.console
+          //console <- ZIO.console
           clock <- ZIO.clock
           client <- ZIO.service[SttpBackend[Task, Any]/*SttpClient*/]
           conn <- ZIO.service[DbConnection]
           c <- conn.connection
-          _ <- console.printLine(s"[FbDownloaderImpl] connection isOpened = ${!c.isClosed}")
-        } yield FbDownloaderImpl(console,clock,client,conn)
+          _ <- ZIO.logInfo/*console.printLine*/(s"[FbDownloaderImpl] connection isOpened = ${!c.isClosed}")
+        } yield FbDownloaderImpl(/*console,*/clock,client,conn)
       }
   }
 
