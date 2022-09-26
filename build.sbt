@@ -88,7 +88,7 @@ lazy val dependenciesPg =
 
 val VersFbp = new {
   val zio  = "2.0.0-RC6" // todo: update to 2.0.2
-  val zioSttp = "3.6.2"  // todo: update to 3.8.0
+  val zioSttp = "3.8.0" //"3.6.2"  // todo: update to 3.8.0
   val Circe = "0.14.2"
   val circeOptics = "0.14.1"
   val slf4jvers = "2.0.0"

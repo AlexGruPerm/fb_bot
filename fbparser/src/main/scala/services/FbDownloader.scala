@@ -59,7 +59,7 @@ import java.sql.Statement
 
 
   //3. Service implementations (classes) should accept all dependencies in constructor
-  case class FbDownloaderImpl(console: Console, clock: Clock, client: SttpClient, conn: DbConnection)
+  case class FbDownloaderImpl(console: Console, clock: Clock, client: SttpBackend[Task, Any]/*SttpClient*/, conn: DbConnection)
     extends FbDownloader {
 
     val _LiveEventsResponse = root.value.result.string
@@ -155,12 +155,12 @@ import java.sql.Statement
 
   //4. converting service implementation into ZLayer
   object FbDownloaderImpl {
-    val layer: ZLayer[SttpClient with DbConnection,Throwable,FbDownloader] =
+    val layer: ZLayer[SttpBackend[Task, Any]/*SttpClient*/ with DbConnection,Throwable,FbDownloader] =
       ZLayer {
         for {
           console <- ZIO.console
           clock <- ZIO.clock
-          client <- ZIO.service[SttpClient]
+          client <- ZIO.service[SttpBackend[Task, Any]/*SttpClient*/]
           conn <- ZIO.service[DbConnection]
           c <- conn.connection
           _ <- console.printLine(s"[FbDownloaderImpl] connection isOpened = ${!c.isClosed}")

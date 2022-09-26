@@ -5,7 +5,8 @@ import common.{AppConfig, ConfigHelper}
 import org.slf4j.LoggerFactory
 import service.{DbConnection, PgConnectionImpl}
 import services.{FbDownloader, FbDownloaderImpl}
-import sttp.client3.asynchttpclient.zio.{AsyncHttpClientZioBackend, SttpClient}
+import sttp.client3.SttpBackend
+import sttp.client3.asynchttpclient.zio.{AsyncHttpClientZioBackend/*, SttpClient*/}
 import sttp.client3.httpclient.zio.HttpClientZioBackend
 import zio.logging.LogFormat
 //import zio.logging.backend.SLF4J
@@ -30,7 +31,7 @@ object Parser extends ZIOAppDefault {
       appConfig = ConfigHelper.getConfig(fileConfig)
     } yield appConfig
 
-  val parserEffect: ZIO[AppConfig with DbConnection with SttpClient with FbDownloader, Throwable, Unit] =
+  val parserEffect: ZIO[AppConfig with DbConnection with SttpBackend[Task, Any]/*SttpClient*/ with FbDownloader, Throwable, Unit] =
     for {
       fbdown <- ZIO.service[FbDownloader]
       fbUrl = "https://line06w.bk6bba-resources.com/line/desktop/topEvents3?place=live&sysId=1&lang=ru&salt=7u4qrf8pq08l5a08288&supertop=4&scopeMarket=1600"
