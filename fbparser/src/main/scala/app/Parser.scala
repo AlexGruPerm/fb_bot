@@ -6,9 +6,10 @@ import org.slf4j.LoggerFactory
 import service.{DbConnection, PgConnectionImpl}
 import services.{FbDownloader, FbDownloaderImpl}
 import sttp.client3.SttpBackend
-import sttp.client3.asynchttpclient.zio.{AsyncHttpClientZioBackend/*, SttpClient*/}
+import sttp.client3.asynchttpclient.zio.AsyncHttpClientZioBackend
 import sttp.client3.httpclient.zio.HttpClientZioBackend
 import zio.logging.LogFormat
+import zio.logging.backend.SLF4J
 //import zio.logging.backend.SLF4J
 import zio.{Chunk, Clock, Console, ExitCode, Layer, RLayer, Schedule, Scope, Task, ULayer, URLayer, ZIO, ZIOAppArgs, ZIOAppDefault, ZLayer, durationInt}
 
@@ -18,8 +19,7 @@ import java.time.Duration
 
 object Parser extends ZIOAppDefault {
 
-  //private val logger = SLF4J.slf4j
-
+  private val logger = SLF4J.slf4j
   val log = LoggerFactory.getLogger(getClass.getName)
 
   //todo: rename it's not a bot
@@ -86,7 +86,7 @@ object Parser extends ZIOAppDefault {
   def run: ZIO[Any with ZIOAppArgs with Scope, Any, Any] = for {
     args <- ZIO.service[ZIOAppArgs]
     botCfg <- botConfigZLayer(args)
-    res <- MainApp.provide(botCfg)/*.provide(logger)*/.exitCode
+    res <- MainApp.provide(botCfg).provide(logger).exitCode
   } yield res
 
 }

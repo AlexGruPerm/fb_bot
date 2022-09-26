@@ -87,18 +87,15 @@ lazy val dependenciesPg =
 // Dependencies for project fbparser.
 
 val VersFbp = new {
-  val zio  =  "2.0.2"  //"2.0.0-RC6" // todo: update to 2.0.2
+  val zio  =  "2.0.2"
   val zioLog = "2.1.1"
+  val zioLogSlf4j = "2.1.1"
 
   val zioSttp = "3.8.0"
   val Circe = "0.14.2"
   val circeOptics = "0.14.1"
-  val slf4jvers = "2.0.0"
-  val logbackvers = "1.4.1" //"1.2.3"
 
-
-  //val zioLogSlf4j = "2.1.1"
-  val zioLogSlf4j = "0.4.0"
+  val logbackvers = "1.4.1"
 }
 
 lazy val dependenciesFbParser =
@@ -107,15 +104,13 @@ lazy val dependenciesFbParser =
 
     val zio = "dev.zio" %% "zio" % VersFbp.zio
     val zio_logging = "dev.zio" %% "zio-logging" % VersFbp.zioLog
-
-    //val zio_logg_slf4j    =  "dev.zio" % "zio-logging-slf4j_2.12" % VersFbp.zioLogSlf4j
-    val zio_logg_slf4j    =  "dev.zio" %% "zio-logging-slf4j" % "2.1.1"
+    val zio_logg_slf4j    =  "dev.zio" %% "zio-logging-slf4j" % VersFbp.zioLogSlf4j
 
     val zio_sttp       = "com.softwaremill.sttp.client3" %% "zio" % VersFbp.zioSttp
     val zio_sttp_async = "com.softwaremill.sttp.client3" %% "async-http-client-backend-zio" % VersFbp.zioSttp
     val zio_sttp_circe = "com.softwaremill.sttp.client3" %% "circe" % VersFbp.zioSttp
 
-    val zioDep = List(zio, zio_logging,zio_logg_slf4j, zio_sttp, zio_sttp_async, zio_sttp_circe)
+    val zioDep = List(zio, zio_logging, zio_logg_slf4j, zio_sttp, zio_sttp_async, zio_sttp_circe)
 
     val circe_libs = Seq(
       "io.circe" %% "circe-core",
