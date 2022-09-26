@@ -94,7 +94,7 @@ val VersFbp = new {
   val Circe = "0.14.2"
   val circeOptics = "0.14.1"
   val slf4jvers = "2.0.0"
-  val logbackvers = "1.2.3"//"1.4.1"
+  val logbackvers = "1.4.1" //"1.2.3"
 
 
   //val zioLogSlf4j = "2.1.1"
