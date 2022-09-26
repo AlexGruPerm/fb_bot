@@ -108,10 +108,8 @@ lazy val dependenciesFbParser =
     val zio = "dev.zio" %% "zio" % VersFbp.zio
     val zio_logging = "dev.zio" %% "zio-logging" % VersFbp.zioLog
 
-    val zio_logg_slf4j    =  "dev.zio" % "zio-logging-slf4j_2.12" % VersFbp.zioLogSlf4j
-    //val zio_logg_slf4j    =  "dev.zio" %% "zio-logging-slf4j" % "2.0.1"//"2.1.1"
-                           //"dev.zio" %% "zio-logging-slf4j" % VersFbp.zioLogSlf4j //.zio
-
+    //val zio_logg_slf4j    =  "dev.zio" % "zio-logging-slf4j_2.12" % VersFbp.zioLogSlf4j
+    val zio_logg_slf4j    =  "dev.zio" %% "zio-logging-slf4j" % "2.1.1"
 
     val zio_sttp       = "com.softwaremill.sttp.client3" %% "zio" % VersFbp.zioSttp
     val zio_sttp_async = "com.softwaremill.sttp.client3" %% "async-http-client-backend-zio" % VersFbp.zioSttp
