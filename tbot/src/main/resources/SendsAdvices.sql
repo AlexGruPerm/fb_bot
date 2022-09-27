@@ -82,19 +82,21 @@ SELECT DISTINCT ei.event_id
                           AND (eii.timerseconds / 60) >= 90
                           )) AND (ei.timerseconds / 60) >= 55;
 
+               
                          
                          
-select sum(1) from events e; -- 32621 
+select sum(1) from events e; -- 35515 
 
-select sum(1) from score  s; -- 26895
+select sum(1) from score  s; -- 
 
-select sum(1) from fba.advice; -- 89
+select sum(1) from fba.advice; -- 
 
-select sum(1) from fba.advice_sent -- 159
-
-
+select sum(1) from fba.advice_sent -- 
 
 select * from fba.tgroup t 
+
+
+
 
 delete from fba.advice;
 delete from fba.advice;

@@ -74,7 +74,7 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
     case req @ Method.POST -> !! =>
       for {
         _ <- ZIO.logInfo("call callback")
-        body    <- req.bodyAsString
+        body    <- req.body.asString(HTTP_CHARSET)//.bodyAsString
         _ <- ZIO.logInfo(s"body = [$body]")
         update  <- ZIO.attempt(fromJson[Update](body))
         _ <- ZIO.logInfo(s"update = [$update]")

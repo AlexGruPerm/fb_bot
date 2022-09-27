@@ -129,12 +129,12 @@ lazy val dependenciesFbParser =
 // Dependencies for project tbot.
 
 val VersTbot = new {
-  val zio            = "2.0.0"
-  val zioTsConf      = "3.0.1"
-  val zhttp          = "2.0.0-RC10"
+  val zio            = "2.0.2"
+  val zioTsConf      = "3.0.2"
+  val zhttp          = "2.0.0-RC11"
   val zioInteropCats = "22.0.0.0"
-  val sttp           = "3.7.4"
-  val bot4s          = "5.6.0"
+  val sttp           = "3.8.0"
+  val bot4s          = "5.6.1"
 }
 
 lazy val dependenciesTbot =
