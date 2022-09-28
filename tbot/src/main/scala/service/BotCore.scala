@@ -43,8 +43,6 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
 {
   val certPathStr :String = config.pubcertpath
 
-  //def certificate: Option[InputFile] = Some(InputFile(new File(certPathStr).toPath))
-
   def certificate: Option[InputFile] = Some(
     InputFile("certificate", Files.readAllBytes(Paths.get(certPathStr)))
   )
@@ -74,7 +72,7 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
     case req @ Method.POST -> !! =>
       for {
         _ <- ZIO.logInfo("call callback")
-        body    <- req.body.asString(HTTP_CHARSET)//.bodyAsString
+        body    <- req.body.asString(HTTP_CHARSET)
         _ <- ZIO.logInfo(s"body = [$body]")
         update  <- ZIO.attempt(fromJson[Update](body))
         _ <- ZIO.logInfo(s"update = [$update]")
@@ -132,7 +130,6 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
 
       _ <- srv.join
       _ <- cln.join
-
     } yield ()
 
   def currentMoscowDateTime: ZIO[Any,Throwable,String] = for {
@@ -168,7 +165,6 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
                     |Обратитесь на fb_advicer@gmail.com укажите ваш ID. """.stripMargin
                }
          }
-
       _ <- (request(SendMessage(adv.groupid, msg, Some(ParseMode.HTML))).when(adv.is_active_user == 1) *>
         request(SendMessage(adv.groupid, msg, Some(ParseMode.HTML))).when(adv.is_active_user == 0)
         *> conn.saveSentGrp(adv).unit).
@@ -181,15 +177,6 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
 
       //todo: addehere final saving sent_datetime into fba.advice
     } yield ()
-/*
-      _ <- (request(SendMessage(advGrp.groupId, advGrp.adviceText, Some(ParseMode.HTML)))
-        *> conn.saveSentGrp(advGrp).unit)
-        .catchAllDefect(ex => ZIO.logError(s"saveSentGrp Exception [${ex.getMessage}]") *>
-            conn.botBlockedByUser(advGrp.groupId).when(ex.getMessage == "Forbidden: bot was blocked by the user")
-        ) //todo: addehere final saving sent_datetime into fba.advice
-  */
-
-
 
    def sendAdvices: ZIO[Any,Throwable,Unit] =
      for {
@@ -214,16 +201,6 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
       for {
         _ <- onCommandLog(msg)
         _ <- conn.save_group(
-          /*
-          390495679L,
-          "first",
-          "last",
-          "username",
-          "ru",
-          0.0,
-          0.0
-          */
-
           msg.chat.id,
           msg.from.map(u => u.firstName).getOrElse(" "),
           msg.from.map(u => u.lastName.getOrElse(" ")).getOrElse(" "),
@@ -231,7 +208,6 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
           msg.from.map(u => u.languageCode.getOrElse(" ")).getOrElse(" "),
           msg.location.map(l => l.latitude).getOrElse(0.0),
           msg.location.map(l => l.longitude).getOrElse(0.0)
-
         )
         r <- reply("start command!").ignore
       } yield r
@@ -256,6 +232,7 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
 
   onCommand("/getb") { implicit msg =>
     onCommandLog(msg) *>
+    //todo: add test here changing bot menu!
       reply("getb command!").ignore
   }
 

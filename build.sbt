@@ -132,6 +132,7 @@ val VersTbot = new {
   val zio            = "2.0.2"
   val zioTsConf      = "3.0.2"
   val zhttp          = "2.0.0-RC11"
+  //val ziohttp        = "2.0.0-RC11+77-71e8cf07-SNAPSHOT"
   val zioInteropCats = "22.0.0.0"
   val sttp           = "3.8.0"
   val bot4s          = "5.6.1"
@@ -140,7 +141,10 @@ val VersTbot = new {
 lazy val dependenciesTbot =
   new {
     val zio = "dev.zio" %% "zio" % VersTbot.zio
+
     val zhttp = "io.d11" %% "zhttp" % VersTbot.zhttp
+    //val zhttp = "dev.zio" %% "zio-http" % VersTbot.ziohttp
+
     val ZioIoCats = "dev.zio" %% "zio-interop-cats" % VersTbot.zioInteropCats
     val zio_config_typesafe = "dev.zio" %% "zio-config-typesafe" % VersTbot.zioTsConf
 

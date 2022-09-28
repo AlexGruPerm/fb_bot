@@ -28,7 +28,7 @@ case class FbBotZioImpl(conf: BotConfig,conn : DbConnection) extends FbBotZio(co
 
 //4. converting service implementation into ZLayer
 object FbBotZioImpl {
-  val layer: ZLayer[AppConfig/*BotConfig*/ with DbConnection, Nothing, FbBotZioImpl] = //ZLayer.succeed(FbBotZioImpl)
+  val layer: ZLayer[AppConfig with DbConnection, Nothing, FbBotZioImpl] =
     ZLayer {
       for {
         conf <- ZIO.service[AppConfig].map(ac => ac.botConfig)
