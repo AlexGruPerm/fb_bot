@@ -150,10 +150,12 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
                if (adv.is_active_user == 1) {
                  s"""<b>Рекомендация № ${adv.adviceId}</b>                  Ваш ID =  ${adv.groupid}
                     |<u>${adv.skname} (${adv.competitionname})</u>
-                    |До конца матча <b>${adv.advice_rest_mis}</b> минут.
-                    |<pre>         ${adv.team1} - ${adv.team2}
-                    |  Коэфф.        ${adv.team1coeff.toString}  ${adv.draw_coeff.toString}  ${adv.team2coeff.toString}
-                    |  Счет          ${adv.team1score}      :    ${adv.team2score}  </pre>
+                    |До конца матча <b>${adv.advice_rest_mis}</b> минут.    Стратегия  :   <b>${adv.advice_strategy}</b>
+                    |<pre>           ${adv.team1} - ${adv.team2}
+                    |  Коэфф.          ${adv.team1coeff.toString}  ${adv.draw_coeff.toString}  ${adv.team2coeff.toString}
+                    |  Счет            ${adv.team1score}      :    ${adv.team2score}
+                    |  Вероятность(%)  ${(100.0/adv.team1coeff).round}     ${(100.0/adv.draw_coeff).round}  ${(100.0/adv.team2coeff).round}</pre>
+                    |
                     |<b>Совет</b> поставить на  <b>${adv.advice_coeff}</b>    (${adv.adviceTypeTxt})
                     |
                     |(дата рекомендации в системе ${adv.ins_datetime} Мск.)

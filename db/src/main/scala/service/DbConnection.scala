@@ -73,7 +73,8 @@ trait DbConnection {
                                                             " team2score,\n     " +
                                                             " advice_coeff,\n   " +
                                                             " advice_rest_mis,\n" +
-                                                            " advice_type)\n    " +
+                                                            " advice_type,\n"     +
+                                                            " advice_strategy)\n" +
                                                  " select  ad.event_id,\n       " +
                                                          " ad.team1coeff,\n     " +
                                                         " ad.draw_coeff,\n " +
@@ -86,7 +87,8 @@ trait DbConnection {
                                                         "   when least(team1coeff,team2coeff,draw_coeff) = team1coeff then 'team1'::text\n " +
                                                         "   when least(team1coeff,team2coeff,draw_coeff) = team2coeff then 'team2'::text\n " +
                                                         "   when least(team1coeff,team2coeff,draw_coeff) = draw_coeff then 'draw'::text\n  " +
-                                                        "   else 'unknown'::text  end) as advice_type\n " +
+                                                        "   else 'unknown'::text  end) as advice_type,\n " +
+                                                        " ad.advice_strategy \n " +
         " from  fba.v_advices ad ON CONFLICT ON CONSTRAINT uk_advice_event_id DO NOTHING RETURNING id;",Statement.RETURN_GENERATED_KEYS)
   } yield pstmt
 
@@ -208,6 +210,7 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
             rsi.getString("advice_coeff"),
             rsi.getInt("advice_rest_mis"),
             rsi.getString("advice_type"),
+            rsi.getString("advice_strategy"), //todo: set here name strategy and catch errors!
             rsi.getLong("groupid"),
             rsi.getInt("is_active_user")
           )

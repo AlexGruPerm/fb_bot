@@ -15,8 +15,8 @@ delete from fba_load;
 
 select * from fba_load;
 
-select sum(1) from events e;  -- 32740
 
+select sum(1) from events e;  -- 68654
 
 
 select e.fba_load_id ,sum(1) as cnt 

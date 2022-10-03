@@ -16,6 +16,7 @@ case class AdviceGroup(
                         advice_coeff: String,
                         advice_rest_mis: Int,
                         advice_type: String,
+                        advice_strategy: String,
                         groupid: Long,
                         is_active_user: Int
                       ){
