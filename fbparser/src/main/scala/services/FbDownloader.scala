@@ -121,13 +121,13 @@ import java.sql.Statement
         time <- clock.currentDateTime
         _ <- ZIO.logInfo(s"$time - $url")
         _ <- ZIO.logInfo("Begin request")
-        basicReq  = basicRequest.post(uri"$url").response(asJson[LiveEventsResponse])
+        basicReq  = basicRequest.get(uri"$url").response(asJson[LiveEventsResponse])
         response <- client.send(basicReq)
-          //.catchAllDefect{ex =>ZIO.logError(s"") }
+          //.catchAllDefect{ex =>ZIO.logError(s"errror = ${ex.getCause + " " + ex.getMessage}") }
         //_ <- console.printLine(s"console response statusText    = ${response.statusText}")
         //_ <- console.printLine(s"console response code          = ${response.code}")
-        _ <- ZIO.logInfo(s"response statusText    = ${response.statusText}")
-        _ <- ZIO.logInfo(s"response code          = ${response.code}")
+        _ <- ZIO.logInfo(s"Errror response statusText    = ${response.statusText}")
+        _ <- ZIO.logInfo(s"Errror response code          = ${response.code}")
 
         _ <- saveEventsScores(response.body.right.get.events).when(response.code == StatusCode.Ok)
 

@@ -164,7 +164,7 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
                  s"""<b>Рекомендация № ${adv.adviceId}</b> Ваш ID = ${adv.groupid}
                     |Ваш ID сейчас не активен. Возможно закончился бесплатный период. Оплатите следующий месяц с текущей даты.
                     |Оплатить можно по QR коду или перводом на карту, укажите свой ID в комментарии к переводу.
-                    |Обратитесь на fb_advicer@gmail.com укажите ваш ID. """.stripMargin
+                    |Обратитесь на fb_adviser@gmail.com укажите ваш ID. """.stripMargin
                }
          }
       _ <- (request(SendMessage(adv.groupid, msg, Some(ParseMode.HTML))).when(adv.is_active_user == 1) *>

@@ -39,7 +39,7 @@ CREATE TABLE fba.advice_sent(
 
 insert into fba.advice_sent(advice_id,groupid) values(1,533534191);
 
-select * from fba.advice_sent
+select * from fba.advice_sent order by id desc
 
 select * from fba.tgroup t 
 
@@ -85,7 +85,7 @@ SELECT DISTINCT ei.event_id
                
                          
                          
-select sum(1) from events e; -- 35515 
+select sum(1) from events e; -- 116 363
 
 select sum(1) from score  s; -- 
 
@@ -95,7 +95,7 @@ select sum(1) from fba.advice_sent --
 
 select * from fba.tgroup t 
 
-
+select * from fba.advice_sent order by id desc
 
 
 delete from fba.advice;

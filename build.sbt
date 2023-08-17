@@ -1,7 +1,7 @@
 name := "fb_bot_project"
 
 ThisBuild / organization := "yakushev"
-ThisBuild / version      := "0.6.0"
+ThisBuild / version      := "0.7.0"
 ThisBuild / scalaVersion := "2.12.15"
 
 /**
@@ -132,7 +132,6 @@ val VersTbot = new {
   val zio            = "2.0.2"
   val zioTsConf      = "3.0.2"
   val zhttp          = "2.0.0-RC11"
-  //val ziohttp        = "2.0.0-RC11+77-71e8cf07-SNAPSHOT"
   val zioInteropCats = "22.0.0.0"
   val sttp           = "3.8.0"
   val bot4s          = "5.6.1"

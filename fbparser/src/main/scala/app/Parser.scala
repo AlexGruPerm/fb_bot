@@ -27,6 +27,7 @@ object Parser extends ZIOAppDefault {
     for {
       configParam <- ZIO.service[String]
       configFilename: String = System.getProperty("user.dir") + File.separator + configParam
+      _ <- ZIO.logInfo(s"configBot configFilename = $configFilename")
       fileConfig = ConfigFactory.parseFile(new io.File(configFilename))
       appConfig = ConfigHelper.getConfig(fileConfig)
     } yield appConfig
@@ -34,8 +35,8 @@ object Parser extends ZIOAppDefault {
   val parserEffect: ZIO[AppConfig with DbConnection with SttpBackend[Task, Any]/*SttpClient*/ with FbDownloader, Throwable, Unit] =
     for {
       fbdown <- ZIO.service[FbDownloader]
-      fbUrl = "https://line06w.bk6bba-resources.com/line/desktop/topEvents3?place=live&sysId=1&lang=ru&salt=7u4qrf8pq08l5a08288&supertop=4&scopeMarket=1600"
-
+       fbUrl = "https://line55w.bk6bba-resources.com/line/desktop/topEvents3?place=live&sysId=1&lang=ru&salt=inghfocedvllb5xtgw&supertop=4&scopeMarket=1600"
+        // fbUrl = "https://line55w.bk6bba-resources.com/line/desktop/topEvents3?place=live&sysId=1&lang=ru&salt=5dhefz7l0wkllb5di8s&supertop=4&scopeMarket=1600"
 
       logicFb <- fbdown.getUrlContent(fbUrl)
         .catchAll {

@@ -15,8 +15,10 @@ delete from fba_load;
 
 select * from fba_load;
 
+alpha	beta	gamma	delta	epsilon	zeta	eta	theta	iota	kappa
 
-select sum(1) from events e;  -- 68654
+
+select sum(1) from events e;  -- 102549
 
 
 select e.fba_load_id ,sum(1) as cnt 
