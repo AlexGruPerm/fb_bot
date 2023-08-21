@@ -167,7 +167,7 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
                     |Обратитесь на fb_adviser@gmail.com укажите ваш ID. """.stripMargin
                }
          }
-      _ <- (request(SendMessage(adv.groupid, msg, Some(ParseMode.HTML))).when(adv.is_active_user == 1) *>
+/*      response <- (request(SendMessage(adv.groupid, msg, Some(ParseMode.HTML))).when(adv.is_active_user == 1) *>
         request(SendMessage(adv.groupid, msg, Some(ParseMode.HTML))).when(adv.is_active_user == 0)
         *> conn.saveSentGrp(adv).unit).
         catchAll{ex : Throwable => ZIO.logError(s"BOT send Throwable [${ex.getLocalizedMessage}] [${ex.getMessage}]") *>
@@ -175,8 +175,10 @@ class telegramBotZio(val config :BotConfig, conn: DbConnection, private val star
         }
         .catchAllDefect(ex => ZIO.logError(s"BOT send Defect [${ex.getLocalizedMessage}] [${ex.getMessage}]") *>
             conn.botBlockedByUser(adv.groupid).when(ex.getMessage == "Forbidden: bot was blocked by the user")
-        )
-
+        )*/
+      response <- request(SendMessage(adv.groupid, msg, Some(ParseMode.HTML)))
+      _ <-  conn.saveSentGrp(adv,response.messageId).unit
+       _ <- ZIO.logInfo(s"response = ${response.messageId}")
       //todo: addehere final saving sent_datetime into fba.advice
     } yield ()
 

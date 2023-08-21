@@ -59,7 +59,7 @@ trait DbConnection {
 
   val prepStmtSaveSentGrp = for {
     pgc <- connection
-    pstmt = pgc.prepareStatement("insert into fba.advice_sent(advice_id,groupid,user_was_active) values(?,?,?);")
+    pstmt = pgc.prepareStatement("insert into fba.advice_sent(advice_id,groupid,user_was_active,messageId) values(?,?,?,?);")
   } yield pstmt
 
   val prepStmtSaveAdvice = for {
@@ -134,7 +134,7 @@ trait DbConnection {
                    team2score: String,
                 ): Task[Int]
 
-  def saveSentGrp(advGrp: AdviceGroup): Task[Int]
+  def saveSentGrp(advGrp: AdviceGroup, messageId: Int): Task[Int]
 
   def saveAdvices: Task[Int]
 }
@@ -314,12 +314,13 @@ case class PgConnectionImpl(conf: DbConfig) extends DbConnection {
     _ = pstmt.getConnection.close()
   } yield idFbaLoad
 
-  def saveSentGrp(advGrp: AdviceGroup): Task[Int] = for {
+  def saveSentGrp(advGrp: AdviceGroup, messageId: Int): Task[Int] = for {
     pstmt <- prepStmtSaveSentGrp
     res <- ZIO.succeed{
       pstmt.setLong(1, advGrp.adviceId)
       pstmt.setLong(2, advGrp.groupid)
-      pstmt.setLong(3,advGrp.is_active_user)
+      pstmt.setLong(3, advGrp.is_active_user)
+      pstmt.setLong(4, messageId)
       pstmt.executeUpdate()
     }
     _ = pstmt.close()

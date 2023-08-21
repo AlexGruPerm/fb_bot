@@ -70,14 +70,14 @@ lazy val dependenciesCommon =
 // Dependencies for project db.
 
 val VersPg = new {
-  val zio  = "2.0.0-RC6"
-  val pg   = "42.4.0"
+  val zio  = "2.0.16"//"2.0.0-RC6"
+  val pg   = "42.6.0"//"42.4.0"
 }
 
 lazy val dependenciesPg =
   new {
     val zio = "dev.zio" %% "zio" % VersPg.zio
-    val zio_logging = "dev.zio" %% "zio-logging" % VersPg.zio
+    val zio_logging = "dev.zio" %% "zio-logging" % "2.1.14"
     val zioDep = List(zio, zio_logging)
     val pg_driver = Seq("org.postgresql" % "postgresql" % VersPg.pg)
     val deps = pg_driver ++ zioDep
